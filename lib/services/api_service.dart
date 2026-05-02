@@ -1,25 +1,19 @@
 import 'dart:convert';
-import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// Service API principal pour communiquer avec le backend NaissanceChain
 class ApiService {
-  // Base URL configurable via dart-define.
-  // Par défaut pour un émulateur Android : 10.0.2.2
-  // Sur appareil réel, utilisez l'adresse IP du PC :
-  // flutter run --dart-define=API_BASE_URL=http://192.168.x.x:3000/api
-  static const String _defaultBaseUrl = String.fromEnvironment(
-    'API_BASE_URL',
-    defaultValue: 'http://10.0.2.2:3000/api',
-  );
+  static String get _baseUrl {
+    const envUrl = String.fromEnvironment('API_BASE_URL', defaultValue: '');
+    if (envUrl.isNotEmpty) return envUrl;
 
-  static String get _baseUrl => _defaultBaseUrl;
-
-  static const String _tokenKey = 'auth_token';
-  static const String _refreshTokenKey = 'refresh_token';
-  static const String _agentKey = 'agent_data';
+    // IMPORTANT: Remplacez par l'IP de votre PC sur le réseau WiFi
+    // Pour émulateur Android: http://10.0.2.2:3000/api
+    // Pour vrai téléphone sur même WiFi: http://192.168.1.107:3000/api
+    return 'http://192.168.1.107:3000/api';
+  }
 
   static const String _tokenKey = 'auth_token';
   static const String _refreshTokenKey = 'refresh_token';

@@ -31,16 +31,12 @@ class _CitizenLoginScreenState extends State<CitizenLoginScreen> {
     });
 
     try {
-      final api = ApiService();
-      final result = await api.post('/auth/citizen/login', {
-        'phoneNumber': _phoneController.text.trim(),
-        'password': _passwordController.text,
-      });
+      final result = await AuthService.citizenLogin(
+        _phoneController.text.trim(),
+        _passwordController.text,
+      );
 
       if (result['success'] && mounted) {
-        // Sauvegarder les tokens
-        await api.setToken(result['data']['accessToken']);
-        
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(builder: (_) => const CitizenDashboardScreen()),
