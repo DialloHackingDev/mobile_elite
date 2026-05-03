@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'register_screen.dart';
+import 'agent/agent_register_wizard_screen.dart';
 import 'history_screen.dart';
 import 'profile_screen.dart';
 import 'verify_screen.dart';
@@ -16,7 +16,7 @@ class _HomeScreenState extends State<HomeScreen> {
   int currentIndex = 0;
 
   final screens = [
-    const RegisterScreen(),
+    const AgentRegisterWizardScreen(),
     const VerifyScreen(),
     const HistoryScreen(),
     const ProfileScreen(),

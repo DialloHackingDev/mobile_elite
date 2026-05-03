@@ -2,13 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../services/api_service.dart';
-import '../../services/auth_service.dart';
 import '../../services/offline_service.dart';
-import '../role_selection_screen.dart';
-import '../register_screen.dart';
+import '../../services/auth_service.dart';
+import 'agent_register_wizard_screen.dart';
 import 'agent_history_screen.dart';
 import 'agent_profile_screen.dart';
 import 'agent_sync_screen.dart';
+import '../role_selection_screen.dart';
 
 class AgentDashboardScreen extends StatefulWidget {
   const AgentDashboardScreen({super.key});
@@ -97,7 +97,7 @@ class _AgentDashboardScreenState extends State<AgentDashboardScreen> {
         onRefresh: _loadHome,
         onNewRecord: () => setState(() => _tab = 1),
       ),
-      const RegisterScreen(),
+      const AgentRegisterWizardScreen(),
       const AgentHistoryScreen(),
       AgentProfileScreen(onLogout: _logout),
     ];
