@@ -4,6 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../services/api_service.dart';
 import '../../services/offline_service.dart';
 import 'agent_sync_screen.dart';
+import 'birth_detail_screen.dart';
 
 class AgentHistoryScreen extends StatefulWidget {
   const AgentHistoryScreen({super.key});
@@ -212,21 +213,30 @@ class _AgentHistoryScreenState extends State<AgentHistoryScreen> {
                     return Padding(
                       padding: const EdgeInsets.symmetric(
                           horizontal: 20, vertical: 5),
-                      child: Container(
-                        padding: const EdgeInsets.all(14),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(14),
-                          border: Border.all(
-                            color: isOffline
-                                ? const Color(0xFFFCD34D)
-                                : synced
-                                    ? const Color(0xFF059669)
-                                    : const Color(0xFFE2E8F0),
-                            width: isOffline || synced ? 1.5 : 1,
+                      child: GestureDetector(
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => BirthDetailScreen(birth: b),
+                            ),
+                          );
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.all(14),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(
+                              color: isOffline
+                                  ? const Color(0xFFFCD34D)
+                                  : synced
+                                      ? const Color(0xFF059669)
+                                      : const Color(0xFFE2E8F0),
+                              width: isOffline || synced ? 1.5 : 1,
+                            ),
                           ),
-                        ),
-                        child: Row(children: [
+                          child: Row(children: [
                           Container(
                             width: 44,
                             height: 44,
@@ -304,6 +314,7 @@ class _AgentHistoryScreenState extends State<AgentHistoryScreen> {
                               ]),
                         ]),
                       ),
+                    ),
                     ).animate().fadeIn(delay: (i * 60).ms);
                   },
                   childCount: _filtered.length,

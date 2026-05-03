@@ -82,14 +82,27 @@ class ApiService {
 
   /// Transforme la réponse HTTP en Map standard {success, data, error, statusCode}
   Map<String, dynamic> _parse(http.Response res) {
-    // Token expiré → on vide la session pour forcer la reconnexion
-    if (res.statusCode == 401) {
-      clearSession();
-      return {'success': false, 'error': 'SESSION_EXPIRED', 'statusCode': 401};
-    }
     try {
       final body    = jsonDecode(res.body) as Map<String, dynamic>;
       final success = res.statusCode >= 200 && res.statusCode < 300;
+
+      // Token expiré ou invalide → on vide la session pour forcer la reconnexion
+      if (res.statusCode == 401) {
+        final backendMessage = body['message'] as String? ?? 'Session expirée';
+        
+        // Toujours vider la session si on a un token (session expirée)
+        if (_token != null) {
+          clearSession();
+        }
+
+        return {
+          'success': false,
+          'error': 'SESSION_EXPIRED',
+          'message': backendMessage,
+          'statusCode': 401,
+        };
+      }
+
       return {
         'success':    success,
         'data':       body['data'],
@@ -98,6 +111,11 @@ class ApiService {
         'statusCode': res.statusCode,
       };
     } catch (_) {
+      // Token expiré avec réponse non-JSON
+      if (res.statusCode == 401) {
+        if (_token != null) clearSession();
+        return {'success': false, 'error': 'SESSION_EXPIRED', 'statusCode': 401};
+      }
       return {'success': false, 'error': 'Réponse invalide', 'statusCode': res.statusCode};
     }
   }
