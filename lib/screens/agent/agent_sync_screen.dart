@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:google_fonts/google_fonts.dart';
-import '../../services/offline_service.dart';
 import '../../services/api_service.dart';
+import '../../services/offline_service.dart';
 
 class AgentSyncScreen extends StatefulWidget {
   const AgentSyncScreen({super.key});
@@ -12,130 +12,132 @@ class AgentSyncScreen extends StatefulWidget {
 }
 
 class _AgentSyncScreenState extends State<AgentSyncScreen> {
-  List<Map<String, dynamic>> _pendingBirths = [];
-  bool _isLoading = true;
-  bool _isSyncing = false;
-  int _syncProgress = 0;
-  int _totalToSync = 0;
+  List<Map<String, dynamic>> _pending = [];
+  bool _loading  = true;
+  bool _syncing  = false;
+  int  _progress = 0;
+  int  _total    = 0;
 
   @override
   void initState() {
     super.initState();
-    _loadPendingBirths();
+    _load();
   }
 
-  Future<void> _loadPendingBirths() async {
-    final offlineService = OfflineService();
-    final births = await offlineService.getOfflineBirths();
-    
-    if (mounted) {
-      setState(() {
-        _pendingBirths = births;
-        _isLoading = false;
-      });
-    }
-  }
-
-  Future<void> _syncAll() async {
-    if (_pendingBirths.isEmpty) return;
-
+  Future<void> _load() async {
+    setState(() => _loading = true);
+    final list = await OfflineService().getOfflineBirths();
+    if (!mounted) return;
     setState(() {
-      _isSyncing = true;
-      _totalToSync = _pendingBirths.length;
-      _syncProgress = 0;
+      _pending = list.where((b) => b['syncStatus'] != 'synced').toList();
+      _loading = false;
     });
+  }
 
-    final offlineService = OfflineService();
-    final api = ApiService();
+  // ── Sync tout ──────────────────────────────────────────────────────────────
+  Future<void> _syncAll() async {
+    if (_pending.isEmpty) return;
+    setState(() { _syncing = true; _total = _pending.length; _progress = 0; });
 
-    for (final birth in _pendingBirths) {
-      try {
-        // Préparer les données pour l'API
-        final birthData = {
-          'childFirstName': birth['childFirstName'],
-          'childLastName': birth['childLastName'],
-          'childGender': birth['childGender'],
-          'dateOfBirth': birth['dateOfBirth'],
-          'placeOfBirth': birth['placeOfBirth'],
-          'motherFullName': birth['motherFullName'],
-          'motherDob': birth['motherDob'],
-          'motherPrefecture': birth['motherPrefecture'],
-          'establishmentCode': birth['establishmentCode'],
-          'timeOfBirth': birth['timeOfBirth'],
-          'fatherFullName': birth['fatherFullName'],
-          'fatherDob': birth['fatherDob'],
-          'gpsCoordinates': birth['gpsCoordinates'],
-          'parentPhoneNumber': birth['parentPhoneNumber'],
-          'isLateRegistration': false,
-        };
-
-        // Envoyer au backend
-        final result = await api.registerBirth(birthData);
-
-        if (result['success']) {
-          // Marquer comme synchronisé
-          await offlineService.markAsSynced(birth['localId'], result['data']['id']);
-        }
-
-        setState(() => _syncProgress++);
-      } catch (e) {
-        // Continuer avec le suivant en cas d'erreur
-        setState(() => _syncProgress++);
-      }
+    for (final birth in _pending) {
+      await _syncOne(birth);
+      if (mounted) setState(() => _progress++);
     }
 
-    // Recharger la liste
-    await _loadPendingBirths();
+    await _load();
+    if (!mounted) return;
+    setState(() => _syncing = false);
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text('Synchronisation terminée : $_progress/$_total'),
+      backgroundColor: const Color(0xFF059669),
+    ));
+  }
 
-    if (mounted) {
-      setState(() => _isSyncing = false);
-      
+  // ── Sync individuel ────────────────────────────────────────────────────────
+  Future<void> _syncSingle(Map<String, dynamic> birth) async {
+    final localId = birth['localId'] as String;
+    try {
+      final result = await _syncOne(birth);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(result
+            ? 'Acte synchronisé avec succès'
+            : 'Échec de la synchronisation'),
+        backgroundColor:
+            result ? const Color(0xFF059669) : Colors.red,
+      ));
+      await _load();
+    } catch (e) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Synchronisation terminée: $_syncProgress/$_totalToSync'),
-          backgroundColor: const Color(0xFF059669),
-        ),
-      );
+          SnackBar(content: Text('Erreur: $e'), backgroundColor: Colors.red));
     }
   }
 
-  Future<void> _syncSingle(String localId) async {
-    // Implémentation similaire pour un seul élément
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Synchronisation individuelle...')),
-    );
+  /// Retourne true si succès
+  Future<bool> _syncOne(Map<String, dynamic> birth) async {
+    final api     = ApiService();
+    final offline = OfflineService();
+    final localId = birth['localId'] as String;
+
+    final payload = {
+      'childFirstName':    birth['childFirstName'],
+      'childLastName':     birth['childLastName'],
+      'childGender':       birth['childGender'],
+      'dateOfBirth':       birth['dateOfBirth'],
+      'timeOfBirth':       birth['timeOfBirth'],
+      'placeOfBirth':      birth['placeOfBirth'],
+      'motherFullName':    birth['motherFullName'],
+      'motherDob':         birth['motherDob'],
+      'motherPrefecture':  birth['motherPrefecture'],
+      'motherCni':         birth['motherCni'],
+      'fatherFullName':    birth['fatherFullName'],
+      'fatherDob':         birth['fatherDob'],
+      'fatherCni':         birth['fatherCni'],
+      'establishmentCode': birth['establishmentCode'],
+      'gpsCoordinates':    birth['gpsCoordinates'],
+      'parentPhoneNumber': birth['parentPhoneNumber'],
+      'isLateRegistration': birth['isLateRegistration'] ?? false,
+    };
+
+    final res = await api.registerBirth(payload);
+    if (res['success'] == true) {
+      final serverId = (res['data'] as Map<String, dynamic>?)?['id'] ?? '';
+      await offline.markAsSynced(localId, serverId);
+      return true;
+    }
+    // Incrémenter le compteur d'erreurs
+    final retries = (birth['retryCount'] as int? ?? 0) + 1;
+    await offline.updateOfflineBirth(localId, {
+      'sync_status': retries >= 3 ? 'failed' : 'pending',
+      'sync_error':  res['error'],
+      'retry_count': retries,
+    });
+    return false;
   }
 
-  Future<void> _deletePending(String localId) async {
-    final confirm = await showDialog<bool>(
+  Future<void> _delete(String localId) async {
+    final ok = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Text(
-          'Confirmer la suppression',
-          style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
-        ),
-        content: Text(
-          'Voulez-vous vraiment supprimer cet enregistrement ?',
-          style: GoogleFonts.poppins(),
-        ),
+      builder: (_) => AlertDialog(
+        title: Text('Supprimer ?',
+            style: GoogleFonts.poppins(fontWeight: FontWeight.w600)),
+        content: Text('Cet enregistrement local sera définitivement supprimé.',
+            style: GoogleFonts.poppins()),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: Text('Annuler', style: GoogleFonts.poppins()),
-          ),
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Annuler')),
           ElevatedButton(
-            onPressed: () => Navigator.pop(context, true),
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-            child: Text('Supprimer', style: GoogleFonts.poppins(color: Colors.white)),
-          ),
+              onPressed: () => Navigator.pop(context, true),
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+              child: const Text('Supprimer')),
         ],
       ),
     );
-
-    if (confirm == true) {
-      final offlineService = OfflineService();
-      await offlineService.deleteOfflineBirth(localId);
-      await _loadPendingBirths();
+    if (ok == true) {
+      await OfflineService().deleteOfflineBirth(localId);
+      await _load();
     }
   }
 
@@ -151,246 +153,205 @@ class _AgentSyncScreenState extends State<AgentSyncScreen> {
           child: Container(
             margin: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: const Color(0xFFE2E8F0)),
-            ),
-            child: const Icon(Icons.arrow_back, size: 20),
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: const Color(0xFFE2E8F0))),
+            child: const Icon(Icons.arrow_back_ios_new, size: 18),
           ),
         ),
-        title: Text(
-          'Synchronisation',
-          style: GoogleFonts.poppins(
-            fontWeight: FontWeight.bold,
-            color: const Color(0xFF0F172A),
-          ),
-        ),
+        title: Text('Synchronisation',
+            style: GoogleFonts.poppins(
+                fontWeight: FontWeight.bold, color: const Color(0xFF0F172A))),
       ),
-      body: _isLoading
+      body: _loading
           ? const Center(child: CircularProgressIndicator())
-          : Column(
-              children: [
-                // Header info
-                Container(
-                  margin: const EdgeInsets.all(20),
-                  padding: const EdgeInsets.all(24),
+          : Column(children: [
+              // ── Header card ────────────────────────────────────────────────
+              Padding(
+                padding: const EdgeInsets.all(20),
+                child: Container(
+                  padding: const EdgeInsets.all(22),
                   decoration: BoxDecoration(
                     gradient: const LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: [Color(0xFF0F172A), Color(0xFF1E293B)],
-                    ),
+                        colors: [Color(0xFF0F172A), Color(0xFF1E293B)]),
                     borderRadius: BorderRadius.circular(20),
                   ),
-                  child: Column(
-                    children: [
-                      Row(
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.all(12),
-                            decoration: BoxDecoration(
-                              color: Colors.white.withOpacity(0.1),
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: const Icon(
-                              Icons.cloud_sync,
-                              color: Colors.white,
-                              size: 32,
-                            ),
-                          ),
-                          const SizedBox(width: 16),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  '${_pendingBirths.length}',
-                                  style: GoogleFonts.poppins(
+                  child: Column(children: [
+                    Row(children: [
+                      Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(12)),
+                        child: const Icon(Icons.cloud_sync_rounded,
+                            color: Colors.white, size: 28),
+                      ),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                '${_pending.length}',
+                                style: GoogleFonts.poppins(
                                     fontSize: 32,
                                     fontWeight: FontWeight.bold,
-                                    color: Colors.white,
-                                  ),
-                                ),
-                                Text(
-                                  'Enregistrements en attente',
-                                  style: GoogleFonts.poppins(
-                                    fontSize: 14,
-                                    color: Colors.white.withOpacity(0.8),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                      if (_isSyncing) ...[
-                        const SizedBox(height: 20),
-                        LinearProgressIndicator(
-                          value: _totalToSync > 0 ? _syncProgress / _totalToSync : 0,
-                          backgroundColor: Colors.white.withOpacity(0.2),
-                          valueColor: const AlwaysStoppedAnimation(Color(0xFF059669)),
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          'Synchronisation... $_syncProgress/$_totalToSync',
-                          style: GoogleFonts.poppins(
-                            fontSize: 12,
-                            color: Colors.white.withOpacity(0.8),
-                          ),
-                        ),
-                      ],
-                    ],
-                  ),
-                ).animate().fadeIn(),
-                
-                // Bouton Sync All
-                if (_pendingBirths.isNotEmpty && !_isSyncing)
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 20),
-                    child: SizedBox(
-                      width: double.infinity,
-                      height: 54,
-                      child: ElevatedButton(
-                        onPressed: _syncAll,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF059669),
-                          foregroundColor: Colors.white,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          elevation: 0,
-                        ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            const Icon(Icons.sync, size: 20),
-                            const SizedBox(width: 10),
-                            Text(
-                              'SYNCHRONISER TOUT',
-                              style: GoogleFonts.poppins(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w700,
-                                letterSpacing: 1,
+                                    color: Colors.white),
                               ),
-                            ),
-                          ],
+                              Text('acte(s) en attente',
+                                  style: GoogleFonts.poppins(
+                                      fontSize: 13,
+                                      color:
+                                          Colors.white.withOpacity(0.7))),
+                            ]),
+                      ),
+                    ]),
+                    if (_syncing) ...[
+                      const SizedBox(height: 16),
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(4),
+                        child: LinearProgressIndicator(
+                          value: _total > 0 ? _progress / _total : 0,
+                          backgroundColor: Colors.white.withOpacity(0.2),
+                          valueColor: const AlwaysStoppedAnimation(
+                              Color(0xFF059669)),
+                          minHeight: 6,
                         ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text('$_progress / $_total synchronisés...',
+                          style: GoogleFonts.poppins(
+                              fontSize: 12,
+                              color: Colors.white.withOpacity(0.7))),
+                    ],
+                  ]),
+                ).animate().fadeIn(),
+              ),
+
+              // ── Bouton sync all ────────────────────────────────────────────
+              if (_pending.isNotEmpty && !_syncing)
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: SizedBox(
+                    width: double.infinity,
+                    height: 52,
+                    child: ElevatedButton.icon(
+                      onPressed: _syncAll,
+                      icon: const Icon(Icons.sync_rounded, size: 20),
+                      label: Text('SYNCHRONISER TOUT',
+                          style: GoogleFonts.poppins(
+                              fontSize: 15, fontWeight: FontWeight.w700)),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF059669),
+                        foregroundColor: Colors.white,
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14)),
                       ),
                     ),
                   ).animate().fadeIn(delay: 200.ms),
-                
-                const SizedBox(height: 20),
-                
-                // Liste
-                Expanded(
-                  child: _pendingBirths.isEmpty
-                      ? Center(
-                          child: Column(
+                ),
+
+              const SizedBox(height: 16),
+
+              // ── Liste ──────────────────────────────────────────────────────
+              Expanded(
+                child: _pending.isEmpty
+                    ? Center(
+                        child: Column(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              Icon(
-                                Icons.cloud_done_outlined,
-                                size: 80,
-                                color: Colors.grey[300],
-                              ),
-                              const SizedBox(height: 16),
+                              Icon(Icons.cloud_done_outlined,
+                                  size: 72, color: Colors.grey[300]),
+                              const SizedBox(height: 14),
                               Text(
-                                'Tous les enregistrements sont synchronisés',
+                                'Tout est synchronisé !',
                                 style: GoogleFonts.poppins(
-                                  fontSize: 16,
-                                  color: const Color(0xFF64748B),
-                                ),
-                                textAlign: TextAlign.center,
+                                    fontSize: 16,
+                                    color: const Color(0xFF64748B)),
                               ),
-                            ],
-                          ),
-                        )
-                      : ListView.builder(
-                          padding: const EdgeInsets.symmetric(horizontal: 20),
-                          itemCount: _pendingBirths.length,
-                          itemBuilder: (context, index) {
-                            final birth = _pendingBirths[index];
-                            return Container(
-                              margin: const EdgeInsets.only(bottom: 12),
-                              padding: const EdgeInsets.all(16),
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(16),
-                                border: Border.all(color: const Color(0xFFFCD34D), width: 2),
+                            ]),
+                      )
+                    : ListView.builder(
+                        padding:
+                            const EdgeInsets.symmetric(horizontal: 20),
+                        itemCount: _pending.length,
+                        itemBuilder: (ctx, i) {
+                          final b = _pending[i];
+                          return Container(
+                            margin: const EdgeInsets.only(bottom: 10),
+                            padding: const EdgeInsets.all(14),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(14),
+                              border: Border.all(
+                                  color: const Color(0xFFFCD34D),
+                                  width: 1.5),
+                            ),
+                            child: Row(children: [
+                              Container(
+                                width: 44,
+                                height: 44,
+                                decoration: BoxDecoration(
+                                    color: const Color(0xFFFEF3C7),
+                                    borderRadius:
+                                        BorderRadius.circular(10)),
+                                child: const Icon(Icons.wifi_off,
+                                    color: Color(0xFFF59E0B)),
                               ),
-                              child: Row(
-                                children: [
-                                  Container(
-                                    width: 48,
-                                    height: 48,
-                                    decoration: BoxDecoration(
-                                      color: const Color(0xFFFEF3C7),
-                                      borderRadius: BorderRadius.circular(12),
-                                    ),
-                                    child: const Icon(
-                                      Icons.wifi_off,
-                                      color: Color(0xFFF59E0B),
-                                    ),
-                                  ),
-                                  const SizedBox(width: 16),
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          '${birth['childLastName']}, ${birth['childFirstName']}',
-                                          style: GoogleFonts.poppins(
-                                            fontSize: 15,
-                                            fontWeight: FontWeight.w600,
-                                            color: const Color(0xFF0F172A),
-                                          ),
-                                        ),
-                                        const SizedBox(height: 4),
-                                        Text(
-                                          'Né(e) le ${birth['dateOfBirth']}',
-                                          style: GoogleFonts.poppins(
-                                            fontSize: 13,
-                                            color: const Color(0xFF64748B),
-                                          ),
-                                        ),
-                                        const SizedBox(height: 4),
-                                        Text(
-                                          'Stocké localement',
-                                          style: GoogleFonts.poppins(
-                                            fontSize: 11,
-                                            color: const Color(0xFFF59E0B),
-                                            fontWeight: FontWeight.w600,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                  Row(
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     children: [
-                                      IconButton(
-                                        onPressed: () => _syncSingle(birth['localId']),
-                                        icon: const Icon(
-                                          Icons.sync,
-                                          color: Color(0xFF059669),
-                                        ),
+                                      Text(
+                                        '${b['childLastName']}, ${b['childFirstName']}',
+                                        style: GoogleFonts.poppins(
+                                            fontSize: 14,
+                                            fontWeight: FontWeight.w600,
+                                            color:
+                                                const Color(0xFF0F172A)),
                                       ),
-                                      IconButton(
-                                        onPressed: () => _deletePending(birth['localId']),
-                                        icon: const Icon(
-                                          Icons.delete_outline,
-                                          color: Color(0xFFDC2626),
-                                        ),
+                                      Text(
+                                        'Né(e) le ${b['dateOfBirth']}',
+                                        style: GoogleFonts.poppins(
+                                            fontSize: 12,
+                                            color:
+                                                const Color(0xFF64748B)),
                                       ),
-                                    ],
-                                  ),
-                                ],
+                                      Text('Stocké localement',
+                                          style: GoogleFonts.poppins(
+                                              fontSize: 11,
+                                              fontWeight: FontWeight.w600,
+                                              color: const Color(
+                                                  0xFFF59E0B))),
+                                    ]),
                               ),
-                            ).animate().fadeIn(delay: (index * 100).ms);
-                          },
-                        ),
-                ),
-              ],
-            ),
+                              Row(children: [
+                                IconButton(
+                                  onPressed: _syncing
+                                      ? null
+                                      : () => _syncSingle(b),
+                                  icon: const Icon(Icons.sync_rounded,
+                                      color: Color(0xFF059669)),
+                                  tooltip: 'Synchroniser',
+                                ),
+                                IconButton(
+                                  onPressed: () =>
+                                      _delete(b['localId'] as String),
+                                  icon: const Icon(
+                                      Icons.delete_outline_rounded,
+                                      color: Color(0xFFDC2626)),
+                                  tooltip: 'Supprimer',
+                                ),
+                              ]),
+                            ]),
+                          ).animate().fadeIn(delay: (i * 80).ms);
+                        },
+                      ),
+              ),
+            ]),
     );
   }
 }

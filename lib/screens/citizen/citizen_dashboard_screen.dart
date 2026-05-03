@@ -2,8 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../services/api_service.dart';
-import 'citizen_birth_detail_screen.dart';
+import '../../services/auth_service.dart';
 import '../role_selection_screen.dart';
+import 'citizen_birth_detail_screen.dart';
+import 'citizen_requests_screen.dart';
+import 'citizen_new_request_screen.dart';
+import 'citizen_profile_screen.dart';
 
 class CitizenDashboardScreen extends StatefulWidget {
   const CitizenDashboardScreen({super.key});
@@ -14,648 +18,491 @@ class CitizenDashboardScreen extends StatefulWidget {
 
 class _CitizenDashboardScreenState extends State<CitizenDashboardScreen> {
   List<Map<String, dynamic>> _children = [];
-  bool _isLoading = true;
-  String? _error;
   Map<String, dynamic>? _userInfo;
+  bool   _loading = true;
+  String? _error;
 
   @override
   void initState() {
     super.initState();
-    _loadData();
+    _load();
   }
 
-  Future<void> _loadData() async {
+  Future<void> _load() async {
+    setState(() { _loading = true; _error = null; });
     try {
       final api = ApiService();
-      
-      // Récupérer les enfants
-      final childrenResult = await api.get('/citizens/my-children');
-      
-      // Récupérer les infos utilisateur
-      final userResult = await api.get('/auth/me');
-      
-      if (mounted) {
-        setState(() {
-          _children = List<Map<String, dynamic>>.from(childrenResult['data'] ?? []);
-          _userInfo = userResult['data'];
-          _isLoading = false;
-        });
+
+      // Récupérer les enfants via la bonne route
+      final childrenRes = await api.getMyChildren();
+      // Récupérer le profil
+      final meRes = await api.getMe();
+
+      // Session expirée
+      if (childrenRes['statusCode'] == 401 || meRes['statusCode'] == 401) {
+        _redirectToLogin();
+        return;
       }
+
+      if (!mounted) return;
+      setState(() {
+        _children = List<Map<String, dynamic>>.from(
+            childrenRes['data'] ?? []);
+        _userInfo = meRes['data'] as Map<String, dynamic>?;
+        _loading  = false;
+      });
     } catch (e) {
-      if (mounted) {
-        setState(() {
-          _error = 'Erreur de chargement: $e';
-          _isLoading = false;
-        });
-      }
+      if (mounted) setState(() { _error = 'Erreur de chargement'; _loading = false; });
     }
+  }
+
+  void _redirectToLogin() {
+    Navigator.pushAndRemoveUntil(
+      context,
+      MaterialPageRoute(builder: (_) => const RoleSelectionScreen()),
+      (r) => false,
+    );
   }
 
   Future<void> _logout() async {
-    await ApiService().clearToken();
-    if (mounted) {
-      Navigator.pushAndRemoveUntil(
-        context,
-        MaterialPageRoute(builder: (_) => const RoleSelectionScreen()),
-        (route) => false,
-      );
-    }
+    await AuthService.logout();
+    _redirectToLogin();
   }
 
   @override
   Widget build(BuildContext context) {
+    final name = _userInfo?['fullName'] as String? ?? 'Famille';
+    final lastName = name.split(' ').last;
+
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
       body: SafeArea(
         child: RefreshIndicator(
-          onRefresh: _loadData,
-          child: CustomScrollView(
-            slivers: [
-              // App Bar
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.all(20),
-                  child: Row(
-                    children: [
-                      Container(
-                        width: 48,
-                        height: 48,
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF059669),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: const Icon(
-                          Icons.shield,
-                          color: Colors.white,
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'NaissanceChain',
-                              style: GoogleFonts.poppins(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 18,
-                              ),
-                            ),
-                            if (_userInfo != null)
-                              Text(
-                                'Famille ${_userInfo!['fullName']?.split(' ').last ?? ''}',
-                                style: GoogleFonts.poppins(
-                                  fontSize: 12,
-                                  color: const Color(0xFF64748B),
-                                ),
-                              ),
-                          ],
-                        ),
-                      ),
-                      IconButton(
-                        onPressed: _logout,
-                        icon: const Icon(Icons.logout, color: Color(0xFF64748B)),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              
-              // Header Card
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20),
-                  child: Container(
-                    padding: const EdgeInsets.all(24),
+          onRefresh: _load,
+          child: CustomScrollView(slivers: [
+            // ── App Bar ──────────────────────────────────────────────────────
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
+                child: Row(children: [
+                  Container(
+                    width: 44,
+                    height: 44,
                     decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                        colors: [Color(0xFF0F172A), Color(0xFF1E293B)],
-                      ),
-                      borderRadius: BorderRadius.circular(20),
+                      color: const Color(0xFF059669),
+                      borderRadius: BorderRadius.circular(12),
                     ),
+                    child: const Icon(Icons.shield_rounded,
+                        color: Colors.white, size: 22),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
                     child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('NaissanceChain',
+                              style: GoogleFonts.poppins(
+                                  fontWeight: FontWeight.bold, fontSize: 16)),
+                          Text('Famille $lastName',
+                              style: GoogleFonts.poppins(
+                                  fontSize: 12,
+                                  color: const Color(0xFF64748B))),
+                        ]),
+                  ),
+                  IconButton(
+                    onPressed: _logout,
+                    icon: const Icon(Icons.logout_rounded,
+                        color: Color(0xFF64748B)),
+                    tooltip: 'Déconnexion',
+                  ),
+                ]),
+              ),
+            ),
+
+            // ── Hero card ────────────────────────────────────────────────────
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+                child: Container(
+                  padding: const EdgeInsets.all(22),
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                        colors: [Color(0xFF0F172A), Color(0xFF1E293B)]),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          'Bonjour, Famille ${_userInfo?['fullName']?.split(' ').last ?? 'Diallo'}',
-                          style: GoogleFonts.poppins(
-                            fontSize: 22,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
+                        Text('Bonjour, Famille $lastName 👋',
+                            style: GoogleFonts.poppins(
+                                fontSize: 20,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white)),
+                        const SizedBox(height: 6),
                         Text(
                           'Vos registres familiaux sont sécurisés\nsur la blockchain nationale.',
                           style: GoogleFonts.poppins(
-                            fontSize: 14,
-                            color: Colors.white.withOpacity(0.8),
-                          ),
+                              fontSize: 13,
+                              color: Colors.white.withOpacity(0.75)),
                         ),
-                      ],
-                    ),
-                  ).animate().fadeIn().slideY(begin: 0.2, end: 0),
-                ),
+                      ]),
+                ).animate().fadeIn().slideY(begin: 0.1, end: 0),
               ),
-              
-              const SliverToBoxAdapter(child: SizedBox(height: 24)),
-              
-              // Stats
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: _StatCard(
-                          title: '$_children.length Vérifiés',
-                          subtitle: 'Statut Global',
-                          icon: Icons.verified_outlined,
-                          color: const Color(0xFF059669),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: _StatCard(
-                          title: '0 En attente',
-                          subtitle: 'Actes',
-                          icon: Icons.pending_outlined,
-                          color: const Color(0xFFF59E0B),
-                        ),
-                      ),
-                    ],
+            ),
+
+            // ── Stats ────────────────────────────────────────────────────────
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+                child: Row(children: [
+                  _StatCard(
+                    title: '${_children.length}',
+                    subtitle: 'Enfants enregistrés',
+                    icon: Icons.child_care_rounded,
+                    color: const Color(0xFF059669),
                   ),
-                ),
+                  const SizedBox(width: 12),
+                  _StatCard(
+                    title: '${_children.where((c) => c['blockchainHash'] != null).length}',
+                    subtitle: 'Certifiés blockchain',
+                    icon: Icons.verified_rounded,
+                    color: const Color(0xFF3B82F6),
+                  ),
+                ]),
               ),
-              
-              const SliverToBoxAdapter(child: SizedBox(height: 24)),
-              
-              // Section Enfants
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20),
-                  child: Row(
+            ),
+
+            // ── Section enfants ──────────────────────────────────────────────
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(20, 24, 20, 12),
+                child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text(
-                        'Enfants enregistrés',
-                        style: GoogleFonts.poppins(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w600,
-                          color: const Color(0xFF0F172A),
-                        ),
-                      ),
-                      Text(
-                        'Mis à jour : Aujourd\'hui',
-                        style: GoogleFonts.poppins(
-                          fontSize: 12,
-                          color: const Color(0xFF64748B),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
+                      Text('Enfants enregistrés',
+                          style: GoogleFonts.poppins(
+                              fontSize: 17,
+                              fontWeight: FontWeight.w600,
+                              color: const Color(0xFF0F172A))),
+                      Text('Mis à jour aujourd\'hui',
+                          style: GoogleFonts.poppins(
+                              fontSize: 12,
+                              color: const Color(0xFF64748B))),
+                    ]),
               ),
-              
-              const SliverToBoxAdapter(child: SizedBox(height: 16)),
-              
-              // Liste des enfants
-              _isLoading
-                  ? const SliverToBoxAdapter(
-                      child: Center(child: CircularProgressIndicator()),
-                    )
-                  : _error != null
-                      ? SliverToBoxAdapter(
-                          child: Center(
-                            child: Column(
-                              children: [
-                                Icon(Icons.error_outline, color: Colors.red[300], size: 48),
-                                const SizedBox(height: 8),
-                                Text(_error!, style: GoogleFonts.poppins(color: Colors.red)),
-                                const SizedBox(height: 16),
-                                ElevatedButton(
-                                  onPressed: _loadData,
-                                  child: const Text('Réessayer'),
-                                ),
-                              ],
-                            ),
-                          ),
-                        )
-                      : _children.isEmpty
-                          ? SliverToBoxAdapter(
-                              child: Center(
-                                child: Column(
-                                  children: [
-                                    const SizedBox(height: 40),
-                                    Icon(
-                                      Icons.child_care_outlined,
-                                      size: 64,
-                                      color: Colors.grey[300],
-                                    ),
-                                    const SizedBox(height: 16),
-                                    Text(
-                                      'Aucun enfant enregistré',
-                                      style: GoogleFonts.poppins(
-                                        fontSize: 16,
-                                        color: const Color(0xFF64748B),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            )
-                          : SliverList(
-                              delegate: SliverChildBuilderDelegate(
-                                (context, index) {
-                                  final child = _children[index];
-                                  return _ChildCard(
-                                    child: child,
-                                    onTap: () => Navigator.push(
-                                      context,
-                                      MaterialPageRoute(
-                                        builder: (_) => CitizenBirthDetailScreen(
-                                          birthData: child,
-                                        ),
-                                      ),
-                                    ),
-                                  ).animate().fadeIn(delay: (index * 100).ms);
-                                },
-                                childCount: _children.length,
-                              ),
-                            ),
-              
-              const SliverToBoxAdapter(child: SizedBox(height: 24)),
-              
-              // Bouton Nouveau-né
+            ),
+
+            // ── Liste enfants ────────────────────────────────────────────────
+            if (_loading)
+              const SliverToBoxAdapter(
+                  child: Center(child: CircularProgressIndicator()))
+            else if (_error != null)
               SliverToBoxAdapter(
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20),
-                  child: GestureDetector(
-                    onTap: () {
-                      // Rediriger vers formulaire de demande
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Contactez un agent pour enregistrer un nouveau-né'),
+                  padding: const EdgeInsets.all(20),
+                  child: Column(children: [
+                    Icon(Icons.error_outline,
+                        color: Colors.red[300], size: 48),
+                    const SizedBox(height: 8),
+                    Text(_error!,
+                        style: GoogleFonts.poppins(color: Colors.red)),
+                    const SizedBox(height: 16),
+                    ElevatedButton(
+                        onPressed: _load,
+                        child: const Text('Réessayer')),
+                  ]),
+                ),
+              )
+            else if (_children.isEmpty)
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.all(40),
+                  child: Column(children: [
+                    Icon(Icons.child_care_outlined,
+                        size: 56, color: Colors.grey[300]),
+                    const SizedBox(height: 12),
+                    Text('Aucun enfant enregistré',
+                        style: GoogleFonts.poppins(
+                            fontSize: 15,
+                            color: const Color(0xFF64748B))),
+                  ]),
+                ),
+              )
+            else
+              SliverList(
+                delegate: SliverChildBuilderDelegate(
+                  (ctx, i) {
+                    final child = _children[i];
+                    return _ChildCard(
+                      child: child,
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) =>
+                              CitizenBirthDetailScreen(birthData: child),
                         ),
-                      );
-                    },
-                    child: Container(
-                      padding: const EdgeInsets.all(20),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFFEF3C7),
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: const Color(0xFFFCD34D)),
                       ),
-                      child: Row(
-                        children: [
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  'Nouveau-né ?',
-                                  style: GoogleFonts.poppins(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w600,
-                                    color: const Color(0xFF92400E),
-                                  ),
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  'Lancez une nouvelle demande\nd\'acte de naissance sécurisée.',
-                                  style: GoogleFonts.poppins(
-                                    fontSize: 13,
-                                    color: const Color(0xFFB45309),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          Container(
-                            width: 48,
-                            height: 48,
-                            decoration: BoxDecoration(
-                              color: const Color(0xFF0F172A),
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: const Icon(Icons.add, color: Colors.white),
-                          ),
-                        ],
-                      ),
+                    ).animate().fadeIn(delay: (i * 100).ms);
+                  },
+                  childCount: _children.length,
+                ),
+              ),
+
+            // ── CTA Nouveau-né ───────────────────────────────────────────────
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+                child: GestureDetector(
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (_) => const CitizenNewRequestScreen()),
+                  ),
+                  child: Container(
+                    padding: const EdgeInsets.all(18),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFEF3C7),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: const Color(0xFFFCD34D)),
                     ),
+                    child: Row(children: [
+                      Expanded(
+                        child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text('Nouveau-né ?',
+                                  style: GoogleFonts.poppins(
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.w600,
+                                      color: const Color(0xFF92400E))),
+                              const SizedBox(height: 4),
+                              Text(
+                                'Lancez une demande d\'acte de naissance sécurisée.',
+                                style: GoogleFonts.poppins(
+                                    fontSize: 12,
+                                    color: const Color(0xFFB45309)),
+                              ),
+                            ]),
+                      ),
+                      Container(
+                        width: 44,
+                        height: 44,
+                        decoration: BoxDecoration(
+                            color: const Color(0xFF0F172A),
+                            borderRadius: BorderRadius.circular(12)),
+                        child: const Icon(Icons.add_rounded,
+                            color: Colors.white),
+                      ),
+                    ]),
                   ),
                 ),
               ),
-              
-              const SliverToBoxAdapter(child: SizedBox(height: 40)),
-            ],
-          ),
+            ),
+
+            const SliverToBoxAdapter(child: SizedBox(height: 40)),
+          ]),
         ),
       ),
-      bottomNavigationBar: Container(
-        padding: const EdgeInsets.symmetric(vertical: 12),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.05),
-              blurRadius: 10,
-              offset: const Offset(0, -4),
-            ),
-          ],
-        ),
-        child: SafeArea(
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: [
-              _NavItem(
-                icon: Icons.home,
-                label: 'ACCUEIL',
-                isActive: true,
-                onTap: () {},
-              ),
-              _NavItem(
-                icon: Icons.description,
-                label: 'MES ACTES',
-                isActive: false,
-                onTap: () {},
-              ),
-              _NavItem(
-                icon: Icons.add_circle_outline,
-                label: 'DEMANDE',
-                isActive: false,
-                onTap: () {},
-              ),
-              _NavItem(
-                icon: Icons.person_outline,
-                label: 'PROFIL',
-                isActive: false,
-                onTap: () {},
-              ),
-            ],
-          ),
-        ),
+      bottomNavigationBar: _BottomNav(
+        onAccueil: () {},
+        onActes: () => Navigator.push(context,
+            MaterialPageRoute(builder: (_) => const CitizenRequestsScreen())),
+        onDemande: () => Navigator.push(context,
+            MaterialPageRoute(
+                builder: (_) => const CitizenNewRequestScreen())),
+        onProfil: () => Navigator.push(context,
+            MaterialPageRoute(builder: (_) => const CitizenProfileScreen())),
       ),
     );
   }
 }
 
 class _StatCard extends StatelessWidget {
-  final String title;
-  final String subtitle;
+  final String title, subtitle;
   final IconData icon;
   final Color color;
-
-  const _StatCard({
-    required this.title,
-    required this.subtitle,
-    required this.icon,
-    required this.color,
-  });
+  const _StatCard({required this.title, required this.subtitle, required this.icon, required this.color});
 
   @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 2),
+  Widget build(BuildContext context) => Expanded(
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: const Color(0xFFE2E8F0)),
           ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(icon, color: color, size: 20),
-              const SizedBox(width: 8),
-              Text(
-                subtitle,
-                style: GoogleFonts.poppins(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  color: color,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Text(
-            title,
-            style: GoogleFonts.poppins(
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-              color: const Color(0xFF0F172A),
+          child: Row(children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                  color: color.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(10)),
+              child: Icon(icon, color: color, size: 20),
             ),
-          ),
-        ],
-      ),
-    );
-  }
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(title,
+                    style: GoogleFonts.poppins(
+                        fontSize: 22,
+                        fontWeight: FontWeight.bold,
+                        color: const Color(0xFF0F172A))),
+                Text(subtitle,
+                    style: GoogleFonts.poppins(
+                        fontSize: 10,
+                        color: const Color(0xFF64748B))),
+              ]),
+            ),
+          ]),
+        ),
+      );
 }
 
 class _ChildCard extends StatelessWidget {
   final Map<String, dynamic> child;
   final VoidCallback onTap;
-
   const _ChildCard({required this.child, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
+    final certified = child['blockchainHash'] != null;
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
       child: GestureDetector(
         onTap: onTap,
         child: Container(
-          padding: const EdgeInsets.all(20),
+          padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.circular(16),
             border: Border.all(color: const Color(0xFFE2E8F0)),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.03),
-                blurRadius: 10,
-                offset: const Offset(0, 2),
-              ),
-            ],
           ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Container(
-                    width: 48,
-                    height: 48,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFDBEAFE),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Icon(
-                      child['childGender'] == 'F' 
-                          ? Icons.face_3 
-                          : Icons.face,
-                      color: const Color(0xFF3B82F6),
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          '${child['childFirstName']} ${child['childLastName']}',
-                          style: GoogleFonts.poppins(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                            color: const Color(0xFF0F172A),
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Row(
-                          children: [
-                            Icon(
-                              Icons.calendar_today,
-                              size: 14,
-                              color: const Color(0xFF64748B),
-                            ),
-                            const SizedBox(width: 4),
-                            Text(
-                              _formatDate(child['dateOfBirth']),
-                              style: GoogleFonts.poppins(
-                                fontSize: 13,
-                                color: const Color(0xFF64748B),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFD1FAE5),
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          Icons.verified,
-                          size: 14,
-                          color: const Color(0xFF059669),
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          'VÉRIFIÉ\nBLOCKCHAIN',
-                          style: GoogleFonts.poppins(
-                            fontSize: 9,
-                            fontWeight: FontWeight.w600,
-                            color: const Color(0xFF059669),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
+          child: Column(children: [
+            Row(children: [
+              Container(
+                width: 46,
+                height: 46,
+                decoration: BoxDecoration(
+                    color: const Color(0xFFDBEAFE),
+                    borderRadius: BorderRadius.circular(12)),
+                child: Icon(
+                  child['childGender'] == 'F' ? Icons.face_3 : Icons.face,
+                  color: const Color(0xFF3B82F6),
+                ),
               ),
-              const SizedBox(height: 16),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: onTap,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF059669),
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Icon(Icons.file_download_outlined, size: 18),
-                      const SizedBox(width: 8),
                       Text(
-                        'ACCÉDER À L\'ACTE',
+                        '${child['childFirstName']} ${child['childLastName']}',
                         style: GoogleFonts.poppins(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                        ),
+                            fontSize: 15,
+                            fontWeight: FontWeight.w600,
+                            color: const Color(0xFF0F172A)),
                       ),
-                    ],
+                      Text(
+                        _fmtDate(child['dateOfBirth']),
+                        style: GoogleFonts.poppins(
+                            fontSize: 12, color: const Color(0xFF64748B)),
+                      ),
+                    ]),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                decoration: BoxDecoration(
+                  color: certified
+                      ? const Color(0xFFD1FAE5)
+                      : const Color(0xFFFEF3C7),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(
+                  certified ? 'CERTIFIÉ' : 'EN ATTENTE',
+                  style: GoogleFonts.poppins(
+                    fontSize: 9,
+                    fontWeight: FontWeight.w700,
+                    color: certified
+                        ? const Color(0xFF059669)
+                        : const Color(0xFFF59E0B),
                   ),
                 ),
               ),
-            ],
-          ),
+            ]),
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: onTap,
+                icon: const Icon(Icons.file_download_outlined, size: 16),
+                label: Text('ACCÉDER À L\'ACTE',
+                    style: GoogleFonts.poppins(
+                        fontSize: 12, fontWeight: FontWeight.w600)),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF059669),
+                  foregroundColor: Colors.white,
+                  elevation: 0,
+                  padding: const EdgeInsets.symmetric(vertical: 10),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10)),
+                ),
+              ),
+            ),
+          ]),
         ),
       ),
     );
   }
 
-  String _formatDate(String? date) {
-    if (date == null) return 'Date inconnue';
+  String _fmtDate(dynamic raw) {
+    if (raw == null) return '—';
     try {
-      final dt = DateTime.parse(date);
-      final months = [
-        'Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Juin',
-        'Juil', 'Août', 'Sep', 'Oct', 'Nov', 'Déc'
-      ];
-      return '${dt.day} ${months[dt.month - 1]} ${dt.year}';
-    } catch (e) {
-      return date;
-    }
+      final dt = DateTime.parse(raw.toString());
+      const m = ['Jan','Fév','Mar','Avr','Mai','Juin',
+                  'Juil','Août','Sep','Oct','Nov','Déc'];
+      return '${dt.day} ${m[dt.month - 1]} ${dt.year}';
+    } catch (_) { return raw.toString(); }
   }
 }
 
-class _NavItem extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final bool isActive;
-  final VoidCallback onTap;
-
-  const _NavItem({
-    required this.icon,
-    required this.label,
-    required this.isActive,
-    required this.onTap,
-  });
+class _BottomNav extends StatelessWidget {
+  final VoidCallback onAccueil, onActes, onDemande, onProfil;
+  const _BottomNav({required this.onAccueil, required this.onActes, required this.onDemande, required this.onProfil});
 
   @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            icon,
-            color: isActive ? const Color(0xFF059669) : const Color(0xFF94A3B8),
-            size: 24,
-          ),
-          const SizedBox(height: 4),
-          Text(
-            label,
-            style: GoogleFonts.poppins(
-              fontSize: 10,
-              fontWeight: FontWeight.w600,
-              color: isActive ? const Color(0xFF059669) : const Color(0xFF94A3B8),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.symmetric(vertical: 10),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.06), blurRadius: 12, offset: const Offset(0, -4))],
+        ),
+        child: SafeArea(
+          child: Row(mainAxisAlignment: MainAxisAlignment.spaceAround, children: [
+            _Item(icon: Icons.home_rounded,        label: 'ACCUEIL', active: true,  onTap: onAccueil),
+            _Item(icon: Icons.description_rounded, label: 'MES ACTES', active: false, onTap: onActes),
+            _Item(icon: Icons.add_circle_outline,  label: 'DEMANDE', active: false, onTap: onDemande),
+            _Item(icon: Icons.person_outline,      label: 'PROFIL',  active: false, onTap: onProfil),
+          ]),
+        ),
+      );
+}
+
+class _Item extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final bool active;
+  final VoidCallback onTap;
+  const _Item({required this.icon, required this.label, required this.active, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) => GestureDetector(
+        onTap: onTap,
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Icon(icon, color: active ? const Color(0xFF059669) : const Color(0xFF94A3B8), size: 24),
+          const SizedBox(height: 3),
+          Text(label, style: GoogleFonts.poppins(fontSize: 9, fontWeight: FontWeight.w600,
+              color: active ? const Color(0xFF059669) : const Color(0xFF94A3B8))),
+        ]),
+      );
 }

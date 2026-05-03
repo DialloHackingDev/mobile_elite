@@ -13,47 +13,50 @@ class AgentHistoryScreen extends StatefulWidget {
 }
 
 class _AgentHistoryScreenState extends State<AgentHistoryScreen> {
-  List<Map<String, dynamic>> _births = [];
-  List<Map<String, dynamic>> _offlineBirths = [];
-  bool _isLoading = true;
-  String _filter = 'Tous';
-  int _pendingCount = 0;
+  List<Map<String, dynamic>> _online  = [];
+  List<Map<String, dynamic>> _offline = [];
+  bool   _loading = true;
+  String _filter  = 'Tous';
 
   @override
   void initState() {
     super.initState();
-    _loadData();
+    _load();
   }
 
-  Future<void> _loadData() async {
+  Future<void> _load() async {
+    setState(() => _loading = true);
     try {
-      final api = ApiService();
-      final offlineService = OfflineService();
-      
-      final result = await api.get('/births?limit=50');
-      final offline = await offlineService.getOfflineBirths();
-      final pending = await offlineService.getPendingSyncCount();
-      
-      if (mounted) {
-        setState(() {
-          _births = List<Map<String, dynamic>>.from(result['data']?['births'] ?? []);
-          _offlineBirths = offline;
-          _pendingCount = pending;
-          _isLoading = false;
-        });
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
+      final api     = ApiService();
+      final offline = OfflineService();
+
+      final res     = await api.getBirths(limit: 50);
+      final offList = await offline.getOfflineBirths();
+
+      if (!mounted) return;
+      setState(() {
+        final data = res['data'] as Map<String, dynamic>?;
+        _online  = List<Map<String, dynamic>>.from(data?['births'] ?? []);
+        // Garder seulement les actes offline non encore synchronisés
+        _offline = offList
+            .where((b) => b['syncStatus'] != 'synced')
+            .toList();
+        _loading = false;
+      });
+    } catch (_) {
+      if (mounted) setState(() => _loading = false);
     }
   }
 
-  List<Map<String, dynamic>> get _filteredBirths {
-    if (_filter == 'Tous') return [..._births, ..._offlineBirths];
-    if (_filter == 'Synchronisés') return _births.where((b) => b['blockchainHash'] != null).toList();
-    if (_filter == 'En attente') return _offlineBirths;
-    return [];
+  List<Map<String, dynamic>> get _filtered {
+    switch (_filter) {
+      case 'Synchronisés':
+        return _online.where((b) => b['blockchainHash'] != null).toList();
+      case 'En attente':
+        return _offline;
+      default:
+        return [..._online, ..._offline];
+    }
   }
 
   @override
@@ -62,367 +65,307 @@ class _AgentHistoryScreenState extends State<AgentHistoryScreen> {
       backgroundColor: const Color(0xFFF8FAFC),
       body: SafeArea(
         child: RefreshIndicator(
-          onRefresh: _loadData,
-          child: CustomScrollView(
-            slivers: [
-              // App Bar
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.all(20),
-                  child: Row(
-                    children: [
-                      Text(
-                        'Historique',
-                        style: GoogleFonts.poppins(
-                          fontSize: 28,
+          onRefresh: _load,
+          child: CustomScrollView(slivers: [
+            // ── Header ──────────────────────────────────────────────────────
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
+                child: Row(children: [
+                  Text('Historique',
+                      style: GoogleFonts.poppins(
+                          fontSize: 26,
                           fontWeight: FontWeight.bold,
-                          color: const Color(0xFF0F172A),
-                        ),
-                      ),
-                      const Spacer(),
-                      IconButton(
-                        onPressed: () => _loadData(),
-                        icon: const Icon(Icons.refresh),
-                      ),
-                    ],
-                  ),
+                          color: const Color(0xFF0F172A))),
+                  const Spacer(),
+                  IconButton(
+                      onPressed: _load,
+                      icon: const Icon(Icons.refresh_rounded)),
+                ]),
+              ),
+            ),
+
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(20, 4, 20, 0),
+                child: Text(
+                  'Suivi des enregistrements et synchronisation blockchain.',
+                  style: GoogleFonts.poppins(
+                      fontSize: 13, color: const Color(0xFF64748B)),
                 ),
               ),
-              
-              // Description
+            ),
+
+            // ── Filtres ──────────────────────────────────────────────────────
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+                child: Row(children: [
+                  _Chip(label: 'Tous',          active: _filter == 'Tous',          onTap: () => setState(() => _filter = 'Tous')),
+                  const SizedBox(width: 8),
+                  _Chip(label: 'Synchronisés',  active: _filter == 'Synchronisés',  onTap: () => setState(() => _filter = 'Synchronisés')),
+                  const SizedBox(width: 8),
+                  _Chip(label: 'En attente',    active: _filter == 'En attente',    onTap: () => setState(() => _filter = 'En attente'),
+                      badge: _offline.length),
+                ]),
+              ),
+            ),
+
+            // ── Bannière sync ────────────────────────────────────────────────
+            if (_offline.isNotEmpty)
               SliverToBoxAdapter(
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20),
-                  child: Text(
-                    'Suivez l\'état de synchronisation des enregistrements sur la blockchain.',
-                    style: GoogleFonts.poppins(
-                      fontSize: 14,
-                      color: const Color(0xFF64748B),
-                    ),
-                  ),
-                ),
-              ),
-              
-              const SliverToBoxAdapter(child: SizedBox(height: 20)),
-              
-              // Filtres
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20),
-                  child: Row(
-                    children: [
-                      _FilterChip(
-                        label: 'Tous',
-                        isActive: _filter == 'Tous',
-                        onTap: () => setState(() => _filter = 'Tous'),
+                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+                  child: GestureDetector(
+                    onTap: () => Navigator.push(context,
+                        MaterialPageRoute(
+                            builder: (_) => const AgentSyncScreen()))
+                        .then((_) => _load()),
+                    child: Container(
+                      padding: const EdgeInsets.all(18),
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(
+                            colors: [Color(0xFF0F172A), Color(0xFF1E293B)]),
+                        borderRadius: BorderRadius.circular(16),
                       ),
-                      const SizedBox(width: 8),
-                      _FilterChip(
-                        label: 'Synchronisés',
-                        isActive: _filter == 'Synchronisés',
-                        onTap: () => setState(() => _filter = 'Synchronisés'),
-                      ),
-                      const SizedBox(width: 8),
-                      _FilterChip(
-                        label: 'En attente',
-                        isActive: _filter == 'En attente',
-                        count: _pendingCount > 0 ? _pendingCount : null,
-                        onTap: () => setState(() => _filter = 'En attente'),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              
-              const SliverToBoxAdapter(child: SizedBox(height: 20)),
-              
-              // File d'attente Card
-              if (_pendingCount > 0)
-                SliverToBoxAdapter(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 20),
-                    child: GestureDetector(
-                      onTap: () => Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (_) => const AgentSyncScreen()),
-                      ),
-                      child: Container(
-                        padding: const EdgeInsets.all(20),
-                        decoration: BoxDecoration(
-                          gradient: const LinearGradient(
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                            colors: [Color(0xFF0F172A), Color(0xFF1E293B)],
-                          ),
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        child: Row(
-                          children: [
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    'FILE D\'ATTENTE',
+                      child: Row(children: [
+                        Expanded(
+                          child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text('FILE D\'ATTENTE',
                                     style: GoogleFonts.poppins(
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w700,
-                                      color: const Color(0xFF94A3B8),
-                                      letterSpacing: 0.5,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 8),
-                                  Text(
-                                    _pendingCount.toString().padLeft(2, '0'),
-                                    style: GoogleFonts.poppins(
-                                      fontSize: 40,
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w700,
+                                        color: const Color(0xFF94A3B8),
+                                        letterSpacing: 0.5)),
+                                const SizedBox(height: 6),
+                                Text(
+                                  _offline.length.toString().padLeft(2, '0'),
+                                  style: GoogleFonts.poppins(
+                                      fontSize: 36,
                                       fontWeight: FontWeight.bold,
-                                      color: Colors.white,
-                                    ),
-                                  ),
-                                  Text(
-                                    'Enregistrements en\nattente',
+                                      color: Colors.white),
+                                ),
+                                Text('acte(s) en attente',
                                     style: GoogleFonts.poppins(
-                                      fontSize: 13,
-                                      color: Colors.white.withOpacity(0.8),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFF059669),
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: Row(
-                                children: [
-                                  const Icon(Icons.sync, color: Colors.white, size: 18),
-                                  const SizedBox(width: 8),
-                                  Text(
-                                    'SYNCHRONISER\nTOUT',
-                                    style: GoogleFonts.poppins(
-                                      fontSize: 11,
-                                      fontWeight: FontWeight.w700,
-                                      color: Colors.white,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
+                                        fontSize: 13,
+                                        color:
+                                            Colors.white.withOpacity(0.7))),
+                              ]),
                         ),
-                      ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 14, vertical: 10),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF059669),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Row(children: [
+                            const Icon(Icons.sync_rounded,
+                                color: Colors.white, size: 18),
+                            const SizedBox(width: 6),
+                            Text('SYNC',
+                                style: GoogleFonts.poppins(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w700,
+                                    color: Colors.white)),
+                          ]),
+                        ),
+                      ]),
                     ),
                   ),
                 ),
-              
-              const SliverToBoxAdapter(child: SizedBox(height: 20)),
-              
-              // Liste
-              _isLoading
-                  ? const SliverToBoxAdapter(
-                      child: Center(child: CircularProgressIndicator()),
-                    )
-                  : _filteredBirths.isEmpty
-                      ? SliverToBoxAdapter(
-                          child: Center(
-                            child: Padding(
-                              padding: const EdgeInsets.all(60),
-                              child: Column(
-                                children: [
-                                  Icon(
-                                    Icons.inbox_outlined,
-                                    size: 64,
-                                    color: Colors.grey[300],
-                                  ),
-                                  const SizedBox(height: 16),
-                                  Text(
-                                    'Aucun enregistrement',
-                                    style: GoogleFonts.poppins(
-                                      fontSize: 16,
-                                      color: const Color(0xFF64748B),
-                                    ),
-                                  ),
-                                ],
-                              ),
+              ),
+
+            const SliverToBoxAdapter(child: SizedBox(height: 16)),
+
+            // ── Liste ────────────────────────────────────────────────────────
+            if (_loading)
+              const SliverToBoxAdapter(
+                  child: Center(child: CircularProgressIndicator()))
+            else if (_filtered.isEmpty)
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.all(60),
+                  child: Column(children: [
+                    Icon(Icons.inbox_outlined,
+                        size: 56, color: Colors.grey[300]),
+                    const SizedBox(height: 12),
+                    Text('Aucun enregistrement',
+                        style: GoogleFonts.poppins(
+                            fontSize: 15,
+                            color: const Color(0xFF64748B))),
+                  ]),
+                ),
+              )
+            else
+              SliverList(
+                delegate: SliverChildBuilderDelegate(
+                  (ctx, i) {
+                    final b = _filtered[i];
+                    // Un acte est offline s'il a un syncStatus (champ SQLite local)
+                    final isOffline = b.containsKey('syncStatus');
+                    final synced    = !isOffline &&
+                        b['blockchainHash'] != null;
+
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 20, vertical: 5),
+                      child: Container(
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(
+                            color: isOffline
+                                ? const Color(0xFFFCD34D)
+                                : synced
+                                    ? const Color(0xFF059669)
+                                    : const Color(0xFFE2E8F0),
+                            width: isOffline || synced ? 1.5 : 1,
+                          ),
+                        ),
+                        child: Row(children: [
+                          Container(
+                            width: 44,
+                            height: 44,
+                            decoration: BoxDecoration(
+                              color: isOffline
+                                  ? const Color(0xFFFEF3C7)
+                                  : const Color(0xFFD1FAE5),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Icon(
+                              b['childGender'] == 'F'
+                                  ? Icons.face_3
+                                  : Icons.face,
+                              color: isOffline
+                                  ? const Color(0xFFF59E0B)
+                                  : const Color(0xFF059669),
                             ),
                           ),
-                        )
-                      : SliverList(
-                          delegate: SliverChildBuilderDelegate(
-                            (context, index) {
-                              final birth = _filteredBirths[index];
-                              final isOffline = birth['syncStatus'] == 'PENDING' || birth['id'] == null;
-                              
-                              return Padding(
-                                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
-                                child: Container(
-                                  padding: const EdgeInsets.all(16),
-                                  decoration: BoxDecoration(
-                                    color: Colors.white,
-                                    borderRadius: BorderRadius.circular(16),
-                                    border: Border.all(
-                                      color: isOffline 
-                                          ? const Color(0xFFFCD34D) 
-                                          : const Color(0xFF059669),
-                                      width: isOffline ? 2 : 2,
-                                    ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                                crossAxisAlignment:
+                                    CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    '${b['childLastName'] ?? '—'}, ${b['childFirstName'] ?? ''}',
+                                    style: GoogleFonts.poppins(
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w600,
+                                        color: const Color(0xFF0F172A)),
                                   ),
-                                  child: Row(
-                                    children: [
-                                      Container(
-                                        width: 48,
-                                        height: 48,
-                                        decoration: BoxDecoration(
-                                          color: isOffline 
-                                              ? const Color(0xFFFEF3C7) 
-                                              : const Color(0xFFD1FAE5),
-                                          borderRadius: BorderRadius.circular(12),
-                                        ),
-                                        child: Icon(
-                                          birth['childGender'] == 'F' 
-                                              ? Icons.face_3 
-                                              : Icons.face,
-                                          color: isOffline 
-                                              ? const Color(0xFFF59E0B) 
-                                              : const Color(0xFF059669),
-                                        ),
-                                      ),
-                                      const SizedBox(width: 16),
-                                      Expanded(
-                                        child: Column(
-                                          crossAxisAlignment: CrossAxisAlignment.start,
-                                          children: [
-                                            Text(
-                                              '${birth['childLastName'] ?? 'Inconnu'}, ${birth['childFirstName'] ?? ''}',
-                                              style: GoogleFonts.poppins(
-                                                fontSize: 15,
-                                                fontWeight: FontWeight.w600,
-                                                color: const Color(0xFF0F172A),
-                                              ),
-                                            ),
-                                            const SizedBox(height: 4),
-                                            Text(
-                                              isOffline 
-                                                  ? 'Stocké localement' 
-                                                  : 'Hier, ${_formatTime(birth['createdAt'])}',
-                                              style: GoogleFonts.poppins(
-                                                fontSize: 12,
-                                                color: const Color(0xFF64748B),
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                      Column(
-                                        crossAxisAlignment: CrossAxisAlignment.end,
-                                        children: [
-                                          Icon(
-                                            isOffline ? Icons.wifi_off : Icons.cloud_done,
-                                            color: isOffline 
-                                                ? const Color(0xFFF59E0B) 
-                                                : const Color(0xFF059669),
-                                            size: 20,
-                                          ),
-                                          const SizedBox(height: 4),
-                                          Text(
-                                            isOffline ? 'HORS LIGNE' : 'SÉCURISÉ',
-                                            style: GoogleFonts.poppins(
-                                              fontSize: 10,
-                                              fontWeight: FontWeight.w700,
-                                              color: isOffline 
-                                                  ? const Color(0xFFF59E0B) 
-                                                  : const Color(0xFF059669),
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ],
+                                  Text(
+                                    isOffline
+                                        ? 'Stocké localement'
+                                        : _fmtDate(b['createdAt']),
+                                    style: GoogleFonts.poppins(
+                                        fontSize: 12,
+                                        color: const Color(0xFF64748B)),
+                                  ),
+                                ]),
+                          ),
+                          Column(
+                              crossAxisAlignment: CrossAxisAlignment.end,
+                              children: [
+                                Icon(
+                                  isOffline
+                                      ? Icons.wifi_off
+                                      : synced
+                                          ? Icons.cloud_done
+                                          : Icons.access_time,
+                                  color: isOffline
+                                      ? const Color(0xFFF59E0B)
+                                      : synced
+                                          ? const Color(0xFF059669)
+                                          : const Color(0xFF94A3B8),
+                                  size: 18,
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  isOffline
+                                      ? 'LOCAL'
+                                      : synced
+                                          ? 'BLOCKCHAIN'
+                                          : 'EN ATTENTE',
+                                  style: GoogleFonts.poppins(
+                                    fontSize: 9,
+                                    fontWeight: FontWeight.w700,
+                                    color: isOffline
+                                        ? const Color(0xFFF59E0B)
+                                        : synced
+                                            ? const Color(0xFF059669)
+                                            : const Color(0xFF94A3B8),
                                   ),
                                 ),
-                              ).animate().fadeIn(delay: (index * 80).ms);
-                            },
-                            childCount: _filteredBirths.length,
-                          ),
-                        ),
-              
-              const SliverToBoxAdapter(child: SizedBox(height: 40)),
-            ],
-          ),
+                              ]),
+                        ]),
+                      ),
+                    ).animate().fadeIn(delay: (i * 60).ms);
+                  },
+                  childCount: _filtered.length,
+                ),
+              ),
+
+            const SliverToBoxAdapter(child: SizedBox(height: 40)),
+          ]),
         ),
       ),
       floatingActionButton: FloatingActionButton(
-        onPressed: () => Navigator.push(
-          context,
-          MaterialPageRoute(builder: (_) => const AgentSyncScreen()),
-        ),
+        onPressed: () => Navigator.push(context,
+                MaterialPageRoute(builder: (_) => const AgentSyncScreen()))
+            .then((_) => _load()),
         backgroundColor: const Color(0xFF0F172A),
-        child: const Icon(Icons.sync),
+        child: const Icon(Icons.sync_rounded),
       ),
     );
   }
 
-  String _formatTime(String? dateTime) {
-    if (dateTime == null) return '--:--';
+  String _fmtDate(dynamic raw) {
+    if (raw == null) return '—';
     try {
-      final dt = DateTime.parse(dateTime);
-      return '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
-    } catch (e) {
-      return '--:--';
+      final dt = DateTime.parse(raw.toString());
+      return '${dt.day}/${dt.month}/${dt.year} ${dt.hour.toString().padLeft(2,'0')}:${dt.minute.toString().padLeft(2,'0')}';
+    } catch (_) {
+      return raw.toString();
     }
   }
 }
 
-class _FilterChip extends StatelessWidget {
+class _Chip extends StatelessWidget {
   final String label;
-  final bool isActive;
-  final int? count;
+  final bool active;
   final VoidCallback onTap;
-
-  const _FilterChip({
-    required this.label,
-    required this.isActive,
-    this.count,
-    required this.onTap,
-  });
+  final int badge;
+  const _Chip({required this.label, required this.active, required this.onTap, this.badge = 0});
 
   @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        decoration: BoxDecoration(
-          color: isActive ? const Color(0xFF0F172A) : const Color(0xFFF1F5F9),
-          borderRadius: BorderRadius.circular(20),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              label,
-              style: GoogleFonts.poppins(
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-                color: isActive ? Colors.white : const Color(0xFF64748B),
-              ),
-            ),
-            if (count != null && count! > 0) ...[
+  Widget build(BuildContext context) => GestureDetector(
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+          decoration: BoxDecoration(
+            color: active ? const Color(0xFF0F172A) : const Color(0xFFF1F5F9),
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+            Text(label,
+                style: GoogleFonts.poppins(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: active ? Colors.white : const Color(0xFF64748B))),
+            if (badge > 0) ...[
               const SizedBox(width: 6),
               Container(
-                width: 6,
-                height: 6,
-                decoration: const BoxDecoration(
-                  color: Color(0xFFF59E0B),
-                  shape: BoxShape.circle,
-                ),
-              ),
+                  width: 6,
+                  height: 6,
+                  decoration: const BoxDecoration(
+                      color: Color(0xFFF59E0B), shape: BoxShape.circle)),
             ],
-          ],
+          ]),
         ),
-      ),
-    );
-  }
+      );
 }

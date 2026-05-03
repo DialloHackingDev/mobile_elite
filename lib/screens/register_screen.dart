@@ -2,10 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
-import '../services/qr_service.dart';
-import '../services/offline_service.dart';
 import '../services/api_service.dart';
 import '../services/auth_service.dart';
+import '../services/offline_service.dart';
+import '../services/qr_service.dart';
 import 'success_screen.dart';
 
 class RegisterScreen extends StatefulWidget {
@@ -71,6 +71,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       appBar: AppBar(
         backgroundColor: primaryColor,
         elevation: 0,
+        automaticallyImplyLeading: false, // Pas de bouton retour — on est dans le dashboard
         title: Text(
           'Nouvelle Naissance',
           style: GoogleFonts.poppins(
@@ -590,23 +591,25 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
       if (_isOnline) {
         // Mode en ligne - envoyer directement au backend
-        final birthData = {
-          'childFirstName': prenom.text,
-          'childLastName': name.text,
-          'childGender': sexe.text,
-          'dateOfBirth': birthDateFormatted,
-          'timeOfBirth': timeOfBirth.text.isEmpty ? null : timeOfBirth.text,
-          'placeOfBirth': lieu.text,
-          'motherFullName': mere.text,
-          'motherDob': motherDobFormatted,
-          'motherPrefecture': motherPrefecture.text,
-          'fatherFullName': pere.text.isEmpty ? null : pere.text,
-          'fatherDob': fatherDobFormatted,
-          'establishmentCode': establishmentCode.text,
-          'gpsCoordinates': _gpsCoordinates,
-          'parentPhoneNumber': parentPhone.text.isEmpty ? null : parentPhone.text,
+        final birthData = <String, dynamic>{
+          'childFirstName':    prenom.text.trim(),
+          'childLastName':     name.text.trim(),
+          'childGender':       sexe.text,
+          'dateOfBirth':       date.text,
+          'placeOfBirth':      lieu.text.trim(),
+          'motherFullName':    mere.text.trim(),
+          'motherDob':         ageMere.text,
+          'motherPrefecture':  motherPrefecture.text.trim(),
+          'establishmentCode': establishmentCode.text.trim(),
           'isLateRegistration': false,
         };
+
+        // Champs optionnels : n'ajouter que s'ils ont une valeur
+        if (timeOfBirth.text.isNotEmpty) birthData['timeOfBirth'] = timeOfBirth.text;
+        if (pere.text.isNotEmpty)        birthData['fatherFullName'] = pere.text.trim();
+        if (agePere.text.isNotEmpty)     birthData['fatherDob'] = agePere.text;
+        if (_gpsCoordinates != null)     birthData['gpsCoordinates'] = _gpsCoordinates;
+        if (parentPhone.text.isNotEmpty) birthData['parentPhoneNumber'] = parentPhone.text.trim();
 
         final result = await _apiService.registerBirth(birthData);
 
@@ -614,9 +617,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
           _isLoading = false;
         });
 
-        if (result['success']) {
-          final data = result['data'];
-          final blockchainId = data['blockchainHash'] ?? QRService.generateBlockchainId();
+        if (result['success'] == true) {
+          final data = result['data'] as Map<String, dynamic>? ?? {};
+          final blockchainId = (data['blockchainHash'] as String?) ?? QRService.generateBlockchainId();
 
           if (mounted) {
             Navigator.of(context).pushReplacement(
@@ -628,14 +631,18 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   fatherName: pere.text.isEmpty ? "Non renseigné" : pere.text,
                   motherName: mere.text,
                   blockchainId: blockchainId,
-                  nationalId: data['nationalId'],
+                  nationalId: data['nationalId'] as String?,
                   isOffline: false,
                 ),
               ),
             );
           }
         } else {
-          _showError(result['error'] ?? 'Erreur d\'enregistrement');
+          // Afficher le message d'erreur précis du backend
+          final errMsg = result['message'] as String?
+              ?? result['error'] as String?
+              ?? 'Erreur d\'enregistrement';
+          _showError(errMsg);
         }
       } else {
         // Mode hors-ligne - sauvegarder localement

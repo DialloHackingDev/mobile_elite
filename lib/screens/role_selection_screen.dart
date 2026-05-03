@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'login_screen.dart';
+import 'agent/agent_login_screen.dart';
 import 'citizen/citizen_login_screen.dart';
 
 class RoleSelectionScreen extends StatelessWidget {
@@ -95,7 +95,7 @@ class RoleSelectionScreen extends StatelessWidget {
                 color: const Color(0xFF059669),
                 onTap: () => Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (_) => const LoginScreen()),
+                  MaterialPageRoute(builder: (_) => const AgentLoginScreen()),
                 ),
               ).animate().fadeIn(delay: 600.ms).slideX(begin: -0.2, end: 0),
               

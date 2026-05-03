@@ -381,7 +381,7 @@ class _CitizenLoginScreenState extends State<CitizenLoginScreen> {
               // Footer
               Center(
                 child: Text(
-                  'Système National de Registre Civil • Infrastructure de\nConfiance Blockchain • République du Sénégal',
+                  'Système National de Registre Civil • Infrastructure de\nConfiance Blockchain • République de Guinée',
                   style: GoogleFonts.poppins(
                     fontSize: 11,
                     color: const Color(0xFF94A3B8),

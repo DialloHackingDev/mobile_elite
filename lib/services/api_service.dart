@@ -3,589 +3,293 @@ import 'package:http/http.dart' as http;
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-/// Service API principal pour communiquer avec le backend NaissanceChain
+/// URL configurable via --dart-define=API_BASE_URL=http://X.X.X.X:3000/api
+/// Émulateur Android  → http://10.0.2.2:3000/api  (valeur par défaut)
+/// Vrai téléphone WiFi → http://192.168.X.X:3000/api
+// Émulateur Android  → http://10.0.2.2:3000/api
+// Vrai téléphone WiFi → http://192.168.1.107:3000/api  (IP de la machine hôte)
+// Surcharger via : flutter run --dart-define=API_BASE_URL=http://X.X.X.X:3000/api
+const String _kBaseUrl = String.fromEnvironment(
+  'API_BASE_URL',
+  defaultValue: 'http://192.168.1.107:3000/api',
+);
+
 class ApiService {
-  static String get _baseUrl {
-    const envUrl = String.fromEnvironment('API_BASE_URL', defaultValue: '');
-    if (envUrl.isNotEmpty) return envUrl;
-
-    // IMPORTANT: Remplacez par l'IP de votre PC sur le réseau WiFi
-    // Pour émulateur Android: http://10.0.2.2:3000/api
-    // Pour vrai téléphone sur même WiFi: http://192.168.1.107:3000/api
-    return 'http://192.168.1.107:3000/api';
-  }
-
-  static const String _tokenKey = 'auth_token';
-  static const String _refreshTokenKey = 'refresh_token';
-  static const String _agentKey = 'agent_data';
-
-  // Singleton
+  // ── Singleton ──────────────────────────────────────────────────────────────
   static final ApiService _instance = ApiService._internal();
   factory ApiService() => _instance;
   ApiService._internal();
 
-  String? _authToken;
-  String? _refreshToken;
-  Map<String, dynamic>? _agentData;
+  // ── Clés SharedPreferences ─────────────────────────────────────────────────
+  static const _kToken        = 'auth_token';
+  static const _kRefreshToken = 'refresh_token';
+  static const _kUser         = 'user_data';
 
-  /// Initialise le service avec les tokens stockés
+  // ── État interne ───────────────────────────────────────────────────────────
+  String? _token;
+  String? _refreshToken;
+  Map<String, dynamic>? _user;
+
+  String get baseUrl => _kBaseUrl;
+  bool   get isAuthenticated => _token != null;
+  String? get token => _token;
+  Map<String, dynamic>? get userData => _user;
+
+  // ── Initialisation ─────────────────────────────────────────────────────────
   Future<void> initialize() async {
     final prefs = await SharedPreferences.getInstance();
-    _authToken = prefs.getString(_tokenKey);
-    _refreshToken = prefs.getString(_refreshTokenKey);
-    final agentJson = prefs.getString(_agentKey);
-    if (agentJson != null) {
-      _agentData = jsonDecode(agentJson);
-    }
+    _token        = prefs.getString(_kToken);
+    _refreshToken = prefs.getString(_kRefreshToken);
+    final raw     = prefs.getString(_kUser);
+    if (raw != null) _user = jsonDecode(raw) as Map<String, dynamic>;
   }
 
-  /// Vérifie la connectivité réseau
-  Future<bool> hasInternetConnection() async {
-    final connectivityResult = await Connectivity().checkConnectivity();
-    return connectivityResult != ConnectivityResult.none;
-  }
-
-  /// Headers par défaut avec authentification
-  Map<String, String> _getHeaders({bool requiresAuth = true}) {
-    final headers = {
-      'Content-Type': 'application/json',
-      'Accept': 'application/json',
-    };
-
-    if (requiresAuth && _authToken != null) {
-      headers['Authorization'] = 'Bearer $_authToken';
-    }
-
-    return headers;
-  }
-
-  /// Sauvegarde les tokens d'authentification
-  Future<void> _saveTokens(String accessToken, String refreshToken, Map<String, dynamic> agent) async {
+  // ── Session ────────────────────────────────────────────────────────────────
+  Future<void> _saveSession(
+    String accessToken,
+    String refreshToken,
+    Map<String, dynamic> user,
+  ) async {
     final prefs = await SharedPreferences.getInstance();
-    _authToken = accessToken;
+    _token        = accessToken;
     _refreshToken = refreshToken;
-    _agentData = agent;
-
-    await prefs.setString(_tokenKey, accessToken);
-    await prefs.setString(_refreshTokenKey, refreshToken);
-    await prefs.setString(_agentKey, jsonEncode(agent));
+    _user         = user;
+    await prefs.setString(_kToken,        accessToken);
+    await prefs.setString(_kRefreshToken, refreshToken);
+    await prefs.setString(_kUser,         jsonEncode(user));
   }
 
-  /// Efface les tokens (logout)
-  Future<void> clearTokens() async {
+  Future<void> clearSession() async {
     final prefs = await SharedPreferences.getInstance();
-    _authToken = null;
-    _refreshToken = null;
-    _agentData = null;
-
-    await prefs.remove(_tokenKey);
-    await prefs.remove(_refreshTokenKey);
-    await prefs.remove(_agentKey);
+    _token = _refreshToken = _user = null;
+    await prefs.remove(_kToken);
+    await prefs.remove(_kRefreshToken);
+    await prefs.remove(_kUser);
   }
 
-  /// Récupère les données de l'agent connecté
-  Map<String, dynamic>? get agentData => _agentData;
-  bool get isAuthenticated => _authToken != null;
-  String? get token => _authToken;
+  // ── Connectivité ───────────────────────────────────────────────────────────
+  Future<bool> hasInternetConnection() async {
+    final r = await Connectivity().checkConnectivity();
+    return r != ConnectivityResult.none;
+  }
 
-  // ==================== AUTHENTIFICATION ====================
+  // ── HTTP helpers ───────────────────────────────────────────────────────────
+  Map<String, String> _headers({bool auth = true}) => {
+    'Content-Type': 'application/json',
+    'Accept':       'application/json',
+    if (auth && _token != null) 'Authorization': 'Bearer $_token',
+  };
 
-  /// Connexion d'un agent
-  /// POST /api/auth/login
-  Future<Map<String, dynamic>> login(String nationalAgentId, String password) async {
+  /// Transforme la réponse HTTP en Map standard {success, data, error, statusCode}
+  Map<String, dynamic> _parse(http.Response res) {
+    // Token expiré → on vide la session pour forcer la reconnexion
+    if (res.statusCode == 401) {
+      clearSession();
+      return {'success': false, 'error': 'SESSION_EXPIRED', 'statusCode': 401};
+    }
     try {
-      final response = await http.post(
-        Uri.parse('$_baseUrl/auth/login'),
-        headers: _getHeaders(requiresAuth: false),
-        body: jsonEncode({
-          'nationalAgentId': nationalAgentId,
-          'password': password,
-        }),
-      );
+      final body    = jsonDecode(res.body) as Map<String, dynamic>;
+      final success = res.statusCode >= 200 && res.statusCode < 300;
+      return {
+        'success':    success,
+        'data':       body['data'],
+        'message':    body['message'],
+        'error':      success ? null : (body['message'] ?? 'Erreur inconnue'),
+        'statusCode': res.statusCode,
+      };
+    } catch (_) {
+      return {'success': false, 'error': 'Réponse invalide', 'statusCode': res.statusCode};
+    }
+  }
 
-      final data = jsonDecode(response.body);
-
-      if (response.statusCode == 200) {
-        final tokens = data['data'];
-        await _saveTokens(
-          tokens['accessToken'],
-          tokens['refreshToken'],
-          tokens['agent'],
-        );
-        return {'success': true, 'data': tokens};
-      } else {
-        return {'success': false, 'error': data['message'] ?? 'Erreur de connexion'};
-      }
+  Future<Map<String, dynamic>> get(String path, {bool auth = true}) async {
+    try {
+      final res = await http
+          .get(Uri.parse('$baseUrl$path'), headers: _headers(auth: auth))
+          .timeout(const Duration(seconds: 15));
+      return _parse(res);
     } catch (e) {
       return {'success': false, 'error': 'Erreur réseau: $e'};
     }
   }
 
-  /// Inscription d'un citoyen/famille
-  /// POST /api/auth/citizen/register
-  Future<Map<String, dynamic>> citizenRegister(Map<String, dynamic> body) async {
+  Future<Map<String, dynamic>> post(
+    String path,
+    Map<String, dynamic> body, {
+    bool auth = true,
+  }) async {
     try {
-      final response = await http.post(
-        Uri.parse('$_baseUrl/auth/citizen/register'),
-        headers: _getHeaders(requiresAuth: false),
-        body: jsonEncode(body),
-      );
-
-      final data = jsonDecode(response.body);
-
-      if (response.statusCode == 201) {
-        final tokens = data['data'];
-        await _saveTokens(
-          tokens['accessToken'],
-          tokens['refreshToken'],
-          tokens['citizen'],
-        );
-        return {'success': true, 'data': tokens};
-      } else {
-        return {'success': false, 'error': data['message'] ?? 'Erreur d\'inscription'};
-      }
+      final res = await http
+          .post(Uri.parse('$baseUrl$path'),
+              headers: _headers(auth: auth), body: jsonEncode(body))
+          .timeout(const Duration(seconds: 30));
+      return _parse(res);
     } catch (e) {
       return {'success': false, 'error': 'Erreur réseau: $e'};
     }
   }
 
-  /// Connexion d'un citoyen/famille
-  /// POST /api/auth/citizen/login
-  Future<Map<String, dynamic>> citizenLogin(String phoneNumber, String password) async {
+  Future<Map<String, dynamic>> patch(
+    String path,
+    Map<String, dynamic> body,
+  ) async {
     try {
-      final response = await http.post(
-        Uri.parse('$_baseUrl/auth/citizen/login'),
-        headers: _getHeaders(requiresAuth: false),
-        body: jsonEncode({
-          'phoneNumber': phoneNumber,
-          'password': password,
-        }),
-      );
-
-      final data = jsonDecode(response.body);
-
-      if (response.statusCode == 200) {
-        final tokens = data['data'];
-        await _saveTokens(
-          tokens['accessToken'],
-          tokens['refreshToken'],
-          tokens['citizen'],
-        );
-        return {'success': true, 'data': tokens};
-      } else {
-        return {'success': false, 'error': data['message'] ?? 'Erreur de connexion'};
-      }
+      final res = await http
+          .patch(Uri.parse('$baseUrl$path'),
+              headers: _headers(), body: jsonEncode(body))
+          .timeout(const Duration(seconds: 15));
+      return _parse(res);
     } catch (e) {
       return {'success': false, 'error': 'Erreur réseau: $e'};
     }
   }
 
-  /// Rafraîchir le token
-  /// POST /api/auth/refresh
-  Future<bool> refreshToken() async {
-    if (_refreshToken == null) return false;
-
+  Future<Map<String, dynamic>> delete(String path) async {
     try {
-      final response = await http.post(
-        Uri.parse('$_baseUrl/auth/refresh'),
-        headers: _getHeaders(requiresAuth: false),
-        body: jsonEncode({'refreshToken': _refreshToken}),
-      );
-
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        final tokens = data['data'];
-        await _saveTokens(
-          tokens['accessToken'],
-          tokens['refreshToken'],
-          _agentData!,
-        );
-        return true;
-      }
-      return false;
+      final res = await http
+          .delete(Uri.parse('$baseUrl$path'), headers: _headers())
+          .timeout(const Duration(seconds: 15));
+      return _parse(res);
     } catch (e) {
-      return false;
+      return {'success': false, 'error': 'Erreur réseau: $e'};
     }
   }
 
-  /// Déconnexion
-  /// POST /api/auth/logout
+  // ══════════════════════════════════════════════════════════════════════════
+  // AUTH — AGENT
+  // ══════════════════════════════════════════════════════════════════════════
+
+  Future<Map<String, dynamic>> loginAgent(
+      String nationalAgentId, String password) async {
+    final res = await post(
+      '/auth/login',
+      {'nationalAgentId': nationalAgentId, 'password': password},
+      auth: false,
+    );
+    if (res['success'] == true) {
+      final d = res['data'] as Map<String, dynamic>;
+      await _saveSession(d['accessToken'], d['refreshToken'],
+          d['agent'] as Map<String, dynamic>);
+    }
+    return res;
+  }
+
   Future<void> logout() async {
-    try {
-      if (_authToken != null) {
-        await http.post(
-          Uri.parse('$_baseUrl/auth/logout'),
-          headers: _getHeaders(),
-        );
-      }
-    } catch (e) {
-      // Ignore les erreurs de logout
-    } finally {
-      await clearTokens();
+    try { await post('/auth/logout', {}); } catch (_) {}
+    await clearSession();
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // AUTH — CITOYEN
+  // ══════════════════════════════════════════════════════════════════════════
+
+  Future<Map<String, dynamic>> loginCitizen(
+      String phoneNumber, String password) async {
+    final res = await post(
+      '/auth/citizen/login',
+      {'phoneNumber': phoneNumber, 'password': password},
+      auth: false,
+    );
+    if (res['success'] == true) {
+      final d = res['data'] as Map<String, dynamic>;
+      await _saveSession(d['accessToken'], d['refreshToken'],
+          d['citizen'] as Map<String, dynamic>);
     }
+    return res;
   }
 
-  /// Configurer 2FA
-  /// POST /api/auth/setup-2fa
-  Future<Map<String, dynamic>> setup2FA() async {
-    try {
-      final response = await http.post(
-        Uri.parse('$_baseUrl/auth/setup-2fa'),
-        headers: _getHeaders(),
-      );
-
-      final data = jsonDecode(response.body);
-      return {
-        'success': response.statusCode == 200,
-        'data': data['data'],
-        'error': data['message'],
-      };
-    } catch (e) {
-      return {'success': false, 'error': 'Erreur réseau: $e'};
+  Future<Map<String, dynamic>> registerCitizen(
+      Map<String, dynamic> body) async {
+    final res = await post('/auth/citizen/register', body, auth: false);
+    if (res['success'] == true) {
+      final d = res['data'] as Map<String, dynamic>;
+      await _saveSession(d['accessToken'], d['refreshToken'],
+          d['citizen'] as Map<String, dynamic>);
     }
+    return res;
   }
 
-  /// Vérifier 2FA
-  /// POST /api/auth/verify-2fa
-  Future<Map<String, dynamic>> verify2FA(String token) async {
-    try {
-      final response = await http.post(
-        Uri.parse('$_baseUrl/auth/verify-2fa'),
-        headers: _getHeaders(),
-        body: jsonEncode({'token': token}),
-      );
+  Future<Map<String, dynamic>> getMe() => get('/auth/me');
 
-      final data = jsonDecode(response.body);
-      return {
-        'success': response.statusCode == 200,
-        'error': data['message'],
-      };
-    } catch (e) {
-      return {'success': false, 'error': 'Erreur réseau: $e'};
-    }
-  }
+  // ══════════════════════════════════════════════════════════════════════════
+  // NAISSANCES
+  // ══════════════════════════════════════════════════════════════════════════
 
-  // ==================== NAISSANCES ====================
+  /// Enregistre un acte (en ligne)
+  Future<Map<String, dynamic>> registerBirth(
+          Map<String, dynamic> data) =>
+      post('/births', data);
 
-  /// Enregistrer une naissance
-  /// POST /api/births
-  Future<Map<String, dynamic>> registerBirth(Map<String, dynamic> birthData) async {
-    try {
-      final response = await http.post(
-        Uri.parse('$_baseUrl/births'),
-        headers: _getHeaders(),
-        body: jsonEncode(birthData),
-      );
+  /// Liste paginée des actes de l'agent connecté
+  Future<Map<String, dynamic>> getBirths({int page = 1, int limit = 20}) =>
+      get('/births?page=$page&limit=$limit');
 
-      final data = jsonDecode(response.body);
+  /// Consulte un acte par son ID national (public)
+  Future<Map<String, dynamic>> getBirthByNationalId(String nationalId) =>
+      get('/births/$nationalId', auth: false);
 
-      if (response.statusCode == 201) {
-        return {'success': true, 'data': data['data']};
-      } else {
-        return {'success': false, 'error': data['message'] ?? 'Erreur d\'enregistrement'};
-      }
-    } catch (e) {
-      return {'success': false, 'error': 'Erreur réseau: $e'};
-    }
-  }
+  /// Synchronise un lot d'actes hors-ligne
+  Future<Map<String, dynamic>> syncBirths(
+          List<Map<String, dynamic>> births) =>
+      post('/births/sync', {'births': births});
 
-  /// Synchroniser les naissances hors-ligne
-  /// POST /api/births/sync
-  Future<Map<String, dynamic>> syncBirths(List<Map<String, dynamic>> births) async {
-    try {
-      final response = await http.post(
-        Uri.parse('$_baseUrl/births/sync'),
-        headers: _getHeaders(),
-        body: jsonEncode({'births': births}),
-      );
+  /// Actes en attente de validation (admin)
+  Future<Map<String, dynamic>> getPendingBirths() => get('/births/pending');
 
-      final data = jsonDecode(response.body);
+  /// Valide ou rejette un acte tardif (admin)
+  Future<Map<String, dynamic>> validateBirth(
+          String id, String decision) =>
+      patch('/births/$id/validate', {'decision': decision});
 
-      if (response.statusCode == 200) {
-        return {'success': true, 'data': data['data']};
-      } else {
-        return {'success': false, 'error': data['message'] ?? 'Erreur de synchronisation'};
-      }
-    } catch (e) {
-      return {'success': false, 'error': 'Erreur réseau: $e'};
-    }
-  }
+  // ══════════════════════════════════════════════════════════════════════════
+  // CITOYEN
+  // ══════════════════════════════════════════════════════════════════════════
 
-  /// Récupérer une naissance par ID national
-  /// GET /api/births/{nationalId}
-  Future<Map<String, dynamic>> getBirthByNationalId(String nationalId) async {
-    try {
-      final response = await http.get(
-        Uri.parse('$_baseUrl/births/$nationalId'),
-        headers: _getHeaders(),
-      );
+  Future<Map<String, dynamic>> getMyChildren() => get('/citizen/my-children');
 
-      final data = jsonDecode(response.body);
+  // ══════════════════════════════════════════════════════════════════════════
+  // DASHBOARD
+  // ══════════════════════════════════════════════════════════════════════════
 
-      if (response.statusCode == 200) {
-        return {'success': true, 'data': data['data']};
-      } else {
-        return {'success': false, 'error': data['message'] ?? 'Acte non trouvé'};
-      }
-    } catch (e) {
-      return {'success': false, 'error': 'Erreur réseau: $e'};
-    }
-  }
+  Future<Map<String, dynamic>> getDashboardStats() =>
+      get('/dashboard/stats');
 
-  /// Récupérer les naissances en attente (ADMIN)
-  /// GET /api/births/pending
-  Future<Map<String, dynamic>> getPendingBirths() async {
-    try {
-      final response = await http.get(
-        Uri.parse('$_baseUrl/births/pending'),
-        headers: _getHeaders(),
-      );
+  // ══════════════════════════════════════════════════════════════════════════
+  // VÉRIFICATION (public)
+  // ══════════════════════════════════════════════════════════════════════════
 
-      final data = jsonDecode(response.body);
+  Future<Map<String, dynamic>> verifyById(String nationalId,
+          {String verifierType = 'PUBLIC'}) =>
+      post('/verify/id',
+          {'nationalId': nationalId, 'verifierType': verifierType},
+          auth: false);
 
-      if (response.statusCode == 200) {
-        return {'success': true, 'data': data['data']};
-      } else {
-        return {'success': false, 'error': data['message']};
-      }
-    } catch (e) {
-      return {'success': false, 'error': 'Erreur réseau: $e'};
-    }
-  }
+  Future<Map<String, dynamic>> verifyByQR(String qrPayload,
+          {String verifierType = 'PUBLIC'}) =>
+      post('/verify/qr',
+          {'qrPayload': qrPayload, 'verifierType': verifierType},
+          auth: false);
 
-  /// Valider une naissance tardive (ADMIN)
-  /// PATCH /api/births/{id}/validate
-  Future<Map<String, dynamic>> validateLateBirth(String id, String decision) async {
-    try {
-      final response = await http.patch(
-        Uri.parse('$_baseUrl/births/$id/validate'),
-        headers: _getHeaders(),
-        body: jsonEncode({'decision': decision}),
-      );
+  // ══════════════════════════════════════════════════════════════════════════
+  // DEMANDES CITOYEN
+  // ══════════════════════════════════════════════════════════════════════════
 
-      final data = jsonDecode(response.body);
+  Future<Map<String, dynamic>> getMyRequests() =>
+      get('/requests/my-requests');
 
-      if (response.statusCode == 200) {
-        return {'success': true, 'data': data['data']};
-      } else {
-        return {'success': false, 'error': data['message'] ?? 'Erreur de validation'};
-      }
-    } catch (e) {
-      return {'success': false, 'error': 'Erreur réseau: $e'};
-    }
-  }
+  Future<Map<String, dynamic>> createRequest(
+          Map<String, dynamic> body) =>
+      post('/requests', body);
 
-  // ==================== VÉRIFICATION ====================
+  Future<Map<String, dynamic>> cancelRequest(String id) =>
+      delete('/requests/$id');
 
-  /// Vérifier un acte via QR Code
-  /// POST /api/verify/qr
-  Future<Map<String, dynamic>> verifyByQR(String qrPayload, {String verifierType = 'PUBLIC'}) async {
-    try {
-      final response = await http.post(
-        Uri.parse('$_baseUrl/verify/qr'),
-        headers: _getHeaders(requiresAuth: false),
-        body: jsonEncode({
-          'qrPayload': qrPayload,
-          'verifierType': verifierType,
-        }),
-      );
+  // ══════════════════════════════════════════════════════════════════════════
+  // HEALTH
+  // ══════════════════════════════════════════════════════════════════════════
 
-      final data = jsonDecode(response.body);
-
-      if (response.statusCode == 200) {
-        return {'success': true, 'data': data['data']};
-      } else {
-        return {'success': false, 'error': data['message'] ?? 'Vérification échouée'};
-      }
-    } catch (e) {
-      return {'success': false, 'error': 'Erreur réseau: $e'};
-    }
-  }
-
-  /// Vérifier un acte via ID National
-  /// POST /api/verify/id
-  Future<Map<String, dynamic>> verifyById(String nationalId, {String verifierType = 'PUBLIC'}) async {
-    try {
-      final response = await http.post(
-        Uri.parse('$_baseUrl/verify/id'),
-        headers: _getHeaders(requiresAuth: false),
-        body: jsonEncode({
-          'nationalId': nationalId,
-          'verifierType': verifierType,
-        }),
-      );
-
-      final data = jsonDecode(response.body);
-
-      if (response.statusCode == 200) {
-        return {'success': true, 'data': data['data']};
-      } else {
-        return {'success': false, 'error': data['message'] ?? 'Acte non trouvé'};
-      }
-    } catch (e) {
-      return {'success': false, 'error': 'Erreur réseau: $e'};
-    }
-  }
-
-  // ==================== DASHBOARD ====================
-
-  /// Récupérer les statistiques
-  /// GET /api/dashboard/stats
-  Future<Map<String, dynamic>> getDashboardStats() async {
-    try {
-      final response = await http.get(
-        Uri.parse('$_baseUrl/dashboard/stats'),
-        headers: _getHeaders(),
-      );
-
-      final data = jsonDecode(response.body);
-
-      if (response.statusCode == 200) {
-        return {'success': true, 'data': data['data']};
-      } else {
-        return {'success': false, 'error': data['message']};
-      }
-    } catch (e) {
-      return {'success': false, 'error': 'Erreur réseau: $e'};
-    }
-  }
-
-  /// Récupérer les données de carte
-  /// GET /api/dashboard/map
-  Future<Map<String, dynamic>> getDashboardMap() async {
-    try {
-      final response = await http.get(
-        Uri.parse('$_baseUrl/dashboard/map'),
-        headers: _getHeaders(),
-      );
-
-      final data = jsonDecode(response.body);
-
-      if (response.statusCode == 200) {
-        return {'success': true, 'data': data['data']};
-      } else {
-        return {'success': false, 'error': data['message']};
-      }
-    } catch (e) {
-      return {'success': false, 'error': 'Erreur réseau: $e'};
-    }
-  }
-
-  // ==================== AGENTS ====================
-
-  /// Récupérer la liste des agents
-  /// GET /api/agents
-  Future<Map<String, dynamic>> getAgents() async {
-    try {
-      final response = await http.get(
-        Uri.parse('$_baseUrl/agents'),
-        headers: _getHeaders(),
-      );
-
-      final data = jsonDecode(response.body);
-
-      if (response.statusCode == 200) {
-        return {'success': true, 'data': data['data']};
-      } else {
-        return {'success': false, 'error': data['message']};
-      }
-    } catch (e) {
-      return {'success': false, 'error': 'Erreur réseau: $e'};
-    }
-  }
-
-  /// Créer un nouvel agent
-  /// POST /api/agents
-  Future<Map<String, dynamic>> createAgent(Map<String, dynamic> agentData) async {
-    try {
-      final response = await http.post(
-        Uri.parse('$_baseUrl/agents'),
-        headers: _getHeaders(),
-        body: jsonEncode(agentData),
-      );
-
-      final data = jsonDecode(response.body);
-
-      if (response.statusCode == 201) {
-        return {'success': true, 'data': data['data']};
-      } else {
-        return {'success': false, 'error': data['message'] ?? 'Erreur de création'};
-      }
-    } catch (e) {
-      return {'success': false, 'error': 'Erreur réseau: $e'};
-    }
-  }
-
-  /// Health check
-  /// GET /api/health
-  Future<Map<String, dynamic>> healthCheck() async {
-    try {
-      final response = await http.get(
-        Uri.parse('$_baseUrl/health'),
-        headers: _getHeaders(requiresAuth: false),
-      );
-
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        return {'success': true, 'data': data};
-      } else {
-        return {'success': false, 'error': 'Service indisponible'};
-      }
-    } catch (e) {
-      return {'success': false, 'error': 'Service indisponible: $e'};
-    }
-  }
-
-  // ==================== MÉTHODES GÉNÉRIQUES ====================
-
-  /// Requête GET générique
-  Future<Map<String, dynamic>> get(String endpoint, {bool requiresAuth = true}) async {
-    try {
-      final response = await http.get(
-        Uri.parse('$_baseUrl$endpoint'),
-        headers: _getHeaders(requiresAuth: requiresAuth),
-      );
-
-      final data = jsonDecode(response.body);
-      return {
-        'success': response.statusCode >= 200 && response.statusCode < 300,
-        'data': data['data'] ?? data,
-        'error': data['message'],
-      };
-    } catch (e) {
-      return {'success': false, 'error': 'Erreur réseau: $e'};
-    }
-  }
-
-  /// Requête POST générique
-  Future<Map<String, dynamic>> post(String endpoint, Map<String, dynamic> body, {bool requiresAuth = true}) async {
-    try {
-      final response = await http.post(
-        Uri.parse('$_baseUrl$endpoint'),
-        headers: _getHeaders(requiresAuth: requiresAuth),
-        body: jsonEncode(body),
-      );
-
-      final data = jsonDecode(response.body);
-      return {
-        'success': response.statusCode >= 200 && response.statusCode < 300,
-        'data': data['data'] ?? data,
-        'error': data['message'],
-      };
-    } catch (e) {
-      return {'success': false, 'error': 'Erreur réseau: $e'};
-    }
-  }
-
-  /// Définir manuellement le token (pour auth citizen)
-  Future<void> setToken(String token) async {
-    final prefs = await SharedPreferences.getInstance();
-    _authToken = token;
-    await prefs.setString(_tokenKey, token);
-  }
-
-  /// Effacer le token (alias pour logout)
-  Future<void> clearToken() async {
-    await clearTokens();
+  Future<bool> healthCheck() async {
+    final r = await get('/health', auth: false);
+    return r['success'] == true;
   }
 }
