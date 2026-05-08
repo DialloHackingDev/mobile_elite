@@ -126,7 +126,7 @@ class ApiService {
     try {
       final res = await http
           .get(Uri.parse('$baseUrl$path'), headers: _headers(auth: auth))
-          .timeout(const Duration(seconds: 15));
+          .timeout(const Duration(seconds: 30));
       return _parse(res);
     } catch (e) {
       return {'success': false, 'error': 'Erreur réseau: $e'};
@@ -142,7 +142,7 @@ class ApiService {
       final res = await http
           .post(Uri.parse('$baseUrl$path'),
               headers: _headers(auth: auth), body: jsonEncode(body))
-          .timeout(const Duration(seconds: 30));
+          .timeout(const Duration(seconds: 60));
       return _parse(res);
     } catch (e) {
       return {'success': false, 'error': 'Erreur réseau: $e'};
@@ -157,7 +157,7 @@ class ApiService {
       final res = await http
           .patch(Uri.parse('$baseUrl$path'),
               headers: _headers(), body: jsonEncode(body))
-          .timeout(const Duration(seconds: 15));
+          .timeout(const Duration(seconds: 30));
       return _parse(res);
     } catch (e) {
       return {'success': false, 'error': 'Erreur réseau: $e'};
@@ -168,7 +168,7 @@ class ApiService {
     try {
       final res = await http
           .delete(Uri.parse('$baseUrl$path'), headers: _headers())
-          .timeout(const Duration(seconds: 15));
+          .timeout(const Duration(seconds: 30));
       return _parse(res);
     } catch (e) {
       return {'success': false, 'error': 'Erreur réseau: $e'};

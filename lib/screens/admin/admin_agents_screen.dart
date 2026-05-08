@@ -14,26 +14,59 @@ class AdminAgentsScreen extends StatefulWidget {
 }
 
 class _AdminAgentsScreenState extends State<AdminAgentsScreen> {
-  late Future<Map<String, dynamic>> _agentsDataFuture;
+  bool _isLoading = true;
+  List<Map<String, dynamic>> _allAgents = [];
+  List<Map<String, dynamic>> _filteredAgents = [];
+  int _totalAgents = 0;
+  int _onlineAgents = 0;
+  
   String _selectedRegion = 'Toutes les régions';
   final TextEditingController _searchController = TextEditingController();
 
   @override
   void initState() {
     super.initState();
-    _agentsDataFuture = _loadAgentsFromAPI();
+    _loadAgentsFromAPI();
+    _searchController.addListener(_runFilter);
   }
 
-
-  Future<Map<String, dynamic>> _loadAgentsFromAPI() async {
+  Future<void> _loadAgentsFromAPI() async {
+    setState(() => _isLoading = true);
     try {
       final api = ApiService();
       final response = await api.get('/dashboard/agents');
-      return response ?? {'agents': [], 'total': 0};
+      if (mounted) {
+        setState(() {
+          final data = response?['data'] as Map<String, dynamic>?;
+          _allAgents = (data?['agents'] as List?)?.cast<Map<String, dynamic>>() ?? [];
+          _filteredAgents = List.from(_allAgents);
+          
+          _totalAgents = _allAgents.length;
+          _onlineAgents = _allAgents.where((a) => a['status'] == 'ACTIVE').length;
+          
+          _isLoading = false;
+        });
+      }
     } catch (e) {
       print('Erreur chargement agents: $e');
-      return {'agents': [], 'total': 0};
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
+  }
+
+  void _runFilter() {
+    String query = _searchController.text.toLowerCase();
+    setState(() {
+      _filteredAgents = _allAgents.where((agent) {
+        final nameMatches = (agent['fullName'] ?? '').toString().toLowerCase().contains(query);
+        final idMatches = (agent['agentId'] ?? '').toString().toLowerCase().contains(query);
+        final regionMatches = _selectedRegion == 'Toutes les régions' || agent['region'] == _selectedRegion;
+        return (nameMatches || idMatches) && regionMatches;
+      }).toList();
+    });
   }
 
   void _showAddAgentDialog(BuildContext context) {
@@ -239,17 +272,22 @@ class _AdminAgentsScreenState extends State<AdminAgentsScreen> {
                           child: Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
-                              Text(
-                                _selectedRegion,
-                                style: GoogleFonts.poppins(
-                                  fontSize: 12,
-                                  color: const Color(0xFF475569),
+                              DropdownButtonHideUnderline(
+                                child: DropdownButton<String>(
+                                  value: _selectedRegion,
+                                  isDense: true,
+                                  icon: const Icon(Icons.keyboard_arrow_down, color: Color(0xFF64748B), size: 18),
+                                  style: GoogleFonts.poppins(fontSize: 12, color: const Color(0xFF475569)),
+                                  items: ['Toutes les régions', 'Conakry', 'Kindia', 'Boké', 'Labé', 'Kankan', 'Mamou', 'Faranah', 'Nzérékoré']
+                                      .map((r) => DropdownMenuItem(value: r, child: Text(r)))
+                                      .toList(),
+                                  onChanged: (val) {
+                                    if (val != null) {
+                                      setState(() => _selectedRegion = val);
+                                      _runFilter();
+                                    }
+                                  },
                                 ),
-                              ),
-                              const Icon(
-                                Icons.keyboard_arrow_down,
-                                color: Color(0xFF64748B),
-                                size: 18,
                               ),
                             ],
                           ),
@@ -264,59 +302,46 @@ class _AdminAgentsScreenState extends State<AdminAgentsScreen> {
 
             // Liste des agents
             Expanded(
-              child: FutureBuilder<Map<String, dynamic>>(
-                future: _agentsDataFuture,
-                builder: (context, snapshot) {
-                  if (snapshot.connectionState == ConnectionState.waiting) {
-                    return const Center(
+              child: _isLoading
+                  ? const Center(
                       child: CircularProgressIndicator(
-                        valueColor:
-                            AlwaysStoppedAnimation<Color>(Color(0xFF10B981)),
+                        valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF10B981)),
                       ),
-                    );
-                  }
-
-                  final data = snapshot.data?['data'] as Map<String, dynamic>?;
-                  final agents = (data?['agents'] as List?)?.cast<Map<String, dynamic>>() ?? [];
-
-                  if (agents.isEmpty) {
-                    return Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(
-                            Icons.people_outline,
-                            size: 48,
-                            color: Colors.grey.withOpacity(0.4),
+                    )
+                  : _filteredAgents.isEmpty
+                      ? Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                Icons.people_outline,
+                                size: 48,
+                                color: Colors.grey.withOpacity(0.4),
+                              ),
+                              const SizedBox(height: 12),
+                              Text(
+                                'Aucun agent trouvé',
+                                style: GoogleFonts.poppins(
+                                  fontSize: 14,
+                                  color: const Color(0xFF64748B),
+                                ),
+                              ),
+                            ],
                           ),
-                          const SizedBox(height: 12),
-                          Text(
-                            'Aucun agent trouvé',
-                            style: GoogleFonts.poppins(
-                              fontSize: 14,
-                              color: const Color(0xFF64748B),
-                            ),
-                          ),
-                        ],
-                      ),
-                    );
-                  }
-
-                  return ListView.builder(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    itemCount: agents.length,
-                    itemBuilder: (context, index) {
-                      return _AgentCard(
-                        agent: agents[index],
-                        onEdit: (a) => _showEditAgentDialog(context, a),
-                        onDelete: (id, name) => _deleteAgent(context, id, name),
-                      ).animate().fadeIn(
-                            delay: (index * 50).ms,
-                          );
-                    },
-                  );
-                },
-              ),
+                        )
+                      : ListView.builder(
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          itemCount: _filteredAgents.length,
+                          itemBuilder: (context, index) {
+                            return _AgentCard(
+                              agent: _filteredAgents[index],
+                              onEdit: (a) => _showEditAgentDialog(context, a),
+                              onDelete: (id, name) => _deleteAgent(context, id, name),
+                            ).animate().fadeIn(
+                                  delay: (index * 50).ms,
+                                );
+                          },
+                        ),
             ),
 
             // Stats footer
@@ -332,7 +357,7 @@ class _AdminAgentsScreenState extends State<AdminAgentsScreen> {
                   Expanded(
                     child: _StatBox(
                       label: 'TOTAL',
-                      value: '124',
+                      value: '$_totalAgents',
                       color: Colors.white,
                     ),
                   ),
@@ -344,7 +369,7 @@ class _AdminAgentsScreenState extends State<AdminAgentsScreen> {
                   Expanded(
                     child: _StatBox(
                       label: 'EN LIGNE',
-                      value: '98',
+                      value: '$_onlineAgents',
                       color: const Color(0xFF10B981),
                     ),
                   ),

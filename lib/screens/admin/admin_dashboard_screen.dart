@@ -8,6 +8,7 @@ import '../role_selection_screen.dart';
 import 'admin_agents_screen.dart';
 import 'admin_network_screen.dart';
 import 'admin_audit_screen.dart';
+import '../agent/agent_register_wizard_screen.dart';
 
 /// Tableau de bord Admin - Supervision nationale du système
 class AdminDashboardScreen extends StatefulWidget {
@@ -24,6 +25,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   bool _isLoading = true;
   Map<String, dynamic>? _nationalStats;
   Map<String, dynamic>? _regionalData;
+  List<Map<String, dynamic>> _pendingRequests = [];
 
   @override
   void initState() {
@@ -58,6 +60,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           _regionalData = mapRes?['data'] ?? mapRes;
           _isLoading = false;
         });
+        _loadRequests();
       }
     } catch (e) {
       if (mounted) {
@@ -65,6 +68,20 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           _isLoading = false;
         });
       }
+    }
+  }
+
+  Future<void> _loadRequests() async {
+    try {
+      final api = ApiService();
+      final res = await api.get('/requests/pending/all');
+      if (mounted && res != null && res['status'] == 'success') {
+        setState(() {
+          _pendingRequests = (res['data'] as List?)?.cast<Map<String, dynamic>>() ?? [];
+        });
+      }
+    } catch (e) {
+      print('Erreur chargement demandes: $e');
     }
   }
 
@@ -88,6 +105,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         admin: widget.admin,
         onRefresh: _loadNationalData,
       ),
+      _RequestsTab(requests: _pendingRequests, onRefresh: _loadRequests),
       const AdminAgentsScreen(),
       const AdminNetworkScreen(),
       const AdminAuditScreen(),
@@ -144,6 +162,26 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         ],
       ),
       body: screens[_currentIndex],
+      floatingActionButton: _currentIndex == 0 || _currentIndex == 1
+          ? FloatingActionButton.extended(
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const AgentRegisterWizardScreen()),
+                ).then((_) => _loadNationalData());
+              },
+              backgroundColor: const Color(0xFF10B981),
+              icon: const Icon(Icons.add, color: Colors.white),
+              label: Text(
+                'NOUVEL ACTE',
+                style: GoogleFonts.poppins(
+                  fontWeight: FontWeight.w600,
+                  fontSize: 12,
+                  color: Colors.white,
+                ),
+              ),
+            )
+          : null,
       bottomNavigationBar: Container(
         decoration: BoxDecoration(
           color: Colors.white,
@@ -169,25 +207,32 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                   onTap: () => setState(() => _currentIndex = 0),
                 ),
                 _NavItem(
-                  icon: Icons.people_outline,
-                  activeIcon: Icons.people,
-                  label: 'Agents',
+                  icon: Icons.assignment_outlined,
+                  activeIcon: Icons.assignment,
+                  label: 'Demandes',
                   isActive: _currentIndex == 1,
                   onTap: () => setState(() => _currentIndex = 1),
                 ),
                 _NavItem(
-                  icon: Icons.network_check_outlined,
-                  activeIcon: Icons.network_check,
-                  label: 'Réseau',
+                  icon: Icons.people_outline,
+                  activeIcon: Icons.people,
+                  label: 'Agents',
                   isActive: _currentIndex == 2,
                   onTap: () => setState(() => _currentIndex = 2),
+                ),
+                _NavItem(
+                  icon: Icons.wifi_tethering,
+                  activeIcon: Icons.wifi_tethering,
+                  label: 'Réseau',
+                  isActive: _currentIndex == 3,
+                  onTap: () => setState(() => _currentIndex = 3),
                 ),
                 _NavItem(
                   icon: Icons.security_outlined,
                   activeIcon: Icons.security,
                   label: 'Audit',
-                  isActive: _currentIndex == 3,
-                  onTap: () => setState(() => _currentIndex = 3),
+                  isActive: _currentIndex == 4,
+                  onTap: () => setState(() => _currentIndex = 4),
                 ),
               ],
             ),
@@ -355,7 +400,7 @@ class _NationalKPIs extends StatelessWidget {
                 icon: Icons.child_care,
                 value: '${stats?['totalBirths']?.toString() ?? '1248392'}',
                 label: 'Total Naissances',
-                trend: '+${stats?['dailyBirths'] ?? 342}/jour',
+                trend: '+${stats?['birthsToday'] ?? 342}/jour',
                 trendUp: true,
                 color: const Color(0xFF059669),
               ),
@@ -551,36 +596,48 @@ class _GeographicActivityCard extends StatelessWidget {
           ),
           const SizedBox(height: 20),
           // Carte placeholder
-          Container(
-            height: 200,
-            decoration: BoxDecoration(
-              color: const Color(0xFFF8FAFC),
-              borderRadius: BorderRadius.circular(16),
-              image: const DecorationImage(
-                image: AssetImage('assets/images/map_placeholder.png'),
-                fit: BoxFit.cover,
-              ),
-            ),
-            child: Center(
-              child: Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.9),
-                  borderRadius: BorderRadius.circular(12),
+          InkWell(
+            onTap: () {
+              // Afficher les détails géographiques
+              showModalBottomSheet(
+                context: context,
+                shape: const RoundedRectangleBorder(
+                  borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
                 ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(Icons.map_outlined, color: Color(0xFF10B981)),
-                    const SizedBox(width: 8),
-                    Text(
-                      'Carte interactive',
-                      style: GoogleFonts.poppins(
-                        fontWeight: FontWeight.w600,
-                        color: const Color(0xFF10B981),
+                builder: (context) => _RegionDetailsSheet(regionalData: regionalData),
+              );
+            },
+            child: Container(
+              height: 200,
+              decoration: BoxDecoration(
+                color: const Color(0xFFF8FAFC),
+                borderRadius: BorderRadius.circular(16),
+                image: const DecorationImage(
+                  image: AssetImage('assets/images/map_placeholder.png'),
+                  fit: BoxFit.cover,
+                ),
+              ),
+              child: Center(
+                child: Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.9),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.touch_app, color: Color(0xFF10B981)),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Cliquez pour explorer',
+                        style: GoogleFonts.poppins(
+                          fontWeight: FontWeight.w600,
+                          color: const Color(0xFF10B981),
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -1015,6 +1072,163 @@ class _NavItem extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+class _RegionDetailsSheet extends StatelessWidget {
+  final Map<String, dynamic>? regionalData;
+
+  const _RegionDetailsSheet({this.regionalData});
+
+  @override
+  Widget build(BuildContext context) {
+    List<Map<String, dynamic>> regions = [];
+    if (regionalData != null && regionalData!['success'] == true) {
+      final list = regionalData!['data'] as List?;
+      if (list != null) {
+        for (var i = 0; i < list.length; i++) {
+          final item = list[i];
+          regions.add({
+            'name': item['prefecture'] ?? 'Inconnu',
+            'count': item['count'] ?? 0,
+            'color': [
+              const Color(0xFF10B981),
+              const Color(0xFFF59E0B),
+              const Color(0xFF3B82F6),
+              const Color(0xFF8B5CF6),
+              const Color(0xFFEF4444),
+              const Color(0xFF06B6D4),
+              const Color(0xFFF97316),
+              const Color(0xFFEC4899),
+            ][i % 8],
+          });
+        }
+      }
+    }
+
+    if (regions.isEmpty) {
+      regions.addAll([
+        {'name': 'Conakry', 'count': 42839, 'color': const Color(0xFF10B981)},
+        {'name': 'Kankan', 'count': 18230, 'color': const Color(0xFFF59E0B)},
+      ]);
+    }
+
+    regions.sort((a, b) => (b['count'] as int).compareTo(a['count'] as int));
+
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Détails par Région',
+                style: GoogleFonts.poppins(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w600,
+                  color: const Color(0xFF0F172A),
+                ),
+              ),
+              IconButton(
+                icon: const Icon(Icons.close),
+                onPressed: () => Navigator.pop(context),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Expanded(
+            child: ListView.builder(
+              itemCount: regions.length,
+              itemBuilder: (context, index) {
+                final reg = regions[index];
+                return ListTile(
+                  leading: CircleAvatar(
+                    backgroundColor: (reg['color'] as Color).withOpacity(0.2),
+                    child: Icon(Icons.location_on, color: reg['color'] as Color),
+                  ),
+                  title: Text(reg['name'] as String, style: GoogleFonts.poppins(fontWeight: FontWeight.w500)),
+                  trailing: Text('${reg['count']} actes', style: GoogleFonts.poppins(fontWeight: FontWeight.w600)),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _RequestsTab extends StatelessWidget {
+  final List<Map<String, dynamic>> requests;
+  final VoidCallback onRefresh;
+
+  const _RequestsTab({required this.requests, required this.onRefresh});
+
+  @override
+  Widget build(BuildContext context) {
+    return RefreshIndicator(
+      onRefresh: () async => onRefresh(),
+      color: const Color(0xFF10B981),
+      child: requests.isEmpty
+          ? Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.assignment_turned_in_outlined, size: 48, color: Colors.grey.withOpacity(0.4)),
+                  const SizedBox(height: 12),
+                  Text('Aucune demande en attente', style: GoogleFonts.poppins(color: const Color(0xFF64748B))),
+                ],
+              ),
+            )
+          : ListView.builder(
+              padding: const EdgeInsets.all(16),
+              itemCount: requests.length,
+              itemBuilder: (context, index) {
+                final req = requests[index];
+                return Card(
+                  margin: const EdgeInsets.only(bottom: 12),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  elevation: 0,
+                  color: Colors.white,
+                  child: ListTile(
+                    contentPadding: const EdgeInsets.all(16),
+                    leading: CircleAvatar(
+                      backgroundColor: const Color(0xFF10B981).withOpacity(0.1),
+                      child: const Icon(Icons.description, color: Color(0xFF10B981)),
+                    ),
+                    title: Text(req['childName'] ?? 'Enfant', style: GoogleFonts.poppins(fontWeight: FontWeight.w600)),
+                    subtitle: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Demandeur: ${req['citizen']?['fullName'] ?? 'N/A'}'),
+                        Text('Tél: ${req['citizen']?['phoneNumber'] ?? 'N/A'}'),
+                      ],
+                    ),
+                    trailing: PopupMenuButton<String>(
+                      onSelected: (val) async {
+                        final api = ApiService();
+                        final res = await api.patch('/requests/${req['id']}/status', {'status': val, 'notes': 'Traité par admin'});
+                        if (res['success'] == true) {
+                          onRefresh();
+                        }
+                      },
+                      itemBuilder: (context) => [
+                        const PopupMenuItem(value: 'APPROVED', child: Text('Approuver')),
+                        const PopupMenuItem(value: 'REJECTED', child: Text('Rejeter')),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
     );
   }
 }
