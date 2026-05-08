@@ -12,11 +12,12 @@ class RoleSelectionScreen extends StatelessWidget {
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
       body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            children: [
-              const SizedBox(height: 40),
+        child: SingleChildScrollView(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              children: [
+                const SizedBox(height: 40),
               
               // Logo
               Container(
@@ -106,14 +107,14 @@ class RoleSelectionScreen extends StatelessWidget {
                 title: 'Famille / Citoyen',
                 subtitle: 'Accès pour consulter les actes de naissance',
                 icon: Icons.family_restroom_outlined,
-                color: const Color(0xFF3B82F6),
+                color: const Color(0xFF06B6D4),
                 onTap: () => Navigator.push(
                   context,
                   MaterialPageRoute(builder: (_) => const CitizenLoginScreen()),
                 ),
               ).animate().fadeIn(delay: 700.ms).slideX(begin: 0.2, end: 0),
               
-              const Spacer(),
+              const SizedBox(height: 40),
               
               // Footer
               Row(
@@ -149,6 +150,7 @@ class RoleSelectionScreen extends StatelessWidget {
               ),
             ],
           ),
+        ),
         ),
       ),
     );

@@ -164,10 +164,16 @@ class _AgentRegisterWizardScreenState extends State<AgentRegisterWizardScreen> {
           establishmentCode: _codeEtablissement.text,
           agentId: agent?.id ?? 'unknown',
           timeOfBirth: _heureNaissance.text.isEmpty ? null : _heureNaissance.text,
+          motherCni: _cniMere.text.isEmpty ? null : _cniMere.text,
           fatherFullName: _nomPere.text.isEmpty ? null : _nomPere.text,
           fatherDob: _datePere.text.isEmpty ? null : _datePere.text,
+          fatherCni: _cniPere.text.isEmpty ? null : _cniPere.text,
           gpsCoordinates: _gpsCoordinates,
           parentPhoneNumber: _telephoneParent.text.isEmpty ? null : _telephoneParent.text,
+          witness1FullName: _temoin1Nom.text.isEmpty ? null : _temoin1Nom.text,
+          witness1Cni: _temoin1Cni.text.isEmpty ? null : _temoin1Cni.text,
+          witness2FullName: _temoin2Nom.text.isEmpty ? null : _temoin2Nom.text,
+          witness2Cni: _temoin2Cni.text.isEmpty ? null : _temoin2Cni.text,
         );
         setState(() => _isLoading = false);
 

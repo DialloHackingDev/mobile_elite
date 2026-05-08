@@ -3,7 +3,9 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../services/auth_service.dart';
 import '../../services/api_service.dart';
+import '../../models/agent.dart';
 import 'agent_dashboard_screen.dart';
+import '../admin/admin_dashboard_screen.dart';
 
 class AgentLoginScreen extends StatefulWidget {
   const AgentLoginScreen({super.key});
@@ -55,15 +57,33 @@ class _AgentLoginScreenState extends State<AgentLoginScreen> {
     setState(() => _loading = false);
 
     if (result['success'] == true) {
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (_) => const AgentDashboardScreen()),
-      );
+      final agent = result['agent'] as Agent;
+      
+      // Redirection selon le rôle
+      if (agent.isAdmin) {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => AdminDashboardScreen(admin: agent)),
+        );
+      } else {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => const AgentDashboardScreen()),
+        );
+      }
     } else {
-      final err = result['error'] as String? ?? 'Identifiants incorrects';
-      setState(() => _error = err == 'SESSION_EXPIRED'
-          ? 'Session expirée, veuillez vous reconnecter'
-          : err);
+      final err = result['error'] as String?;
+      final msg = result['message'] as String?;
+      
+      setState(() {
+        if (err == 'SESSION_EXPIRED') {
+          _error = 'Session expirée, veuillez vous reconnecter';
+        } else if (err == 'INVALID_CREDENTIALS') {
+          _error = msg ?? 'Identifiants ou mot de passe incorrects';
+        } else {
+          _error = msg ?? err ?? 'Erreur de connexion';
+        }
+      });
     }
   }
 

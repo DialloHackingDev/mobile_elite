@@ -103,7 +103,7 @@ class AgentProfileScreen extends StatelessWidget {
                 style: GoogleFonts.poppins(
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
-                    color: const Color(0xFF3B82F6)),
+                    color: const Color(0xFF06B6D4)),
               ),
             ),
 

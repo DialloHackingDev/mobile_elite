@@ -212,21 +212,7 @@ class OfflineService {
       orderBy: 'created_at DESC',
     );
 
-    return results.map((row) => {
-      'localId': row['local_id'],
-      'childFirstName': row['child_first_name'],
-      'childLastName': row['child_last_name'],
-      'childGender': row['child_gender'],
-      'dateOfBirth': row['date_of_birth'],
-      'timeOfBirth': row['time_of_birth'],
-      'placeOfBirth': row['place_of_birth'],
-      'motherFullName': row['mother_full_name'],
-      'motherDob': row['mother_dob'],
-      'motherPrefecture': row['mother_prefecture'],
-      'fatherFullName': row['father_full_name'],
-      'syncStatus': row['sync_status'],
-      'createdAt': row['created_at'],
-    }).toList();
+    return results.map((row) => _mapBirthRow(row)).toList();
   }
 
   /// Récupérer une naissance par ID local
@@ -390,9 +376,10 @@ class OfflineService {
       'parentPhoneNumber': birth['parentPhoneNumber'],
       'isLateRegistration': birth['isLateRegistration'],
       'witness1FullName': birth['witness1FullName'],
-      'witness1Cni': birth['witness1Cni'],
+      'witness1Cni':      birth['witness1Cni'],
       'witness2FullName': birth['witness2FullName'],
-      'witness2Cni': birth['witness2Cni'],
+      'witness2Cni':      birth['witness2Cni'],
+      'localId':          birth['localId'],
     };
 
     return await _apiService.registerBirth(birthData);

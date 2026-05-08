@@ -98,6 +98,11 @@ class _AgentSyncScreenState extends State<AgentSyncScreen> {
       'gpsCoordinates':    birth['gpsCoordinates'],
       'parentPhoneNumber': birth['parentPhoneNumber'],
       'isLateRegistration': birth['isLateRegistration'] ?? false,
+      'witness1FullName':   birth['witness1FullName'],
+      'witness1Cni':        birth['witness1Cni'],
+      'witness2FullName':   birth['witness2FullName'],
+      'witness2Cni':        birth['witness2Cni'],
+      'localId':            birth['localId'],
     };
 
     final res = await api.registerBirth(payload);
@@ -173,7 +178,7 @@ class _AgentSyncScreenState extends State<AgentSyncScreen> {
                   padding: const EdgeInsets.all(22),
                   decoration: BoxDecoration(
                     gradient: const LinearGradient(
-                        colors: [Color(0xFF0F172A), Color(0xFF1E293B)]),
+                        colors: [Color(0xFF059669), Color(0xFF047857)]),
                     borderRadius: BorderRadius.circular(20),
                   ),
                   child: Column(children: [
@@ -244,7 +249,8 @@ class _AgentSyncScreenState extends State<AgentSyncScreen> {
                       style: ElevatedButton.styleFrom(
                         backgroundColor: const Color(0xFF059669),
                         foregroundColor: Colors.white,
-                        elevation: 0,
+                        elevation: 4,
+                        shadowColor: const Color(0xFF059669).withOpacity(0.4),
                         shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(14)),
                       ),

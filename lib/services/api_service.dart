@@ -11,7 +11,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 // Surcharger via : flutter run --dart-define=API_BASE_URL=http://X.X.X.X:3000/api
 const String _kBaseUrl = String.fromEnvironment(
   'API_BASE_URL',
-  defaultValue: 'http://192.168.1.107:3000/api',
+  defaultValue: 'http://10.0.2.2:3000/api',  // Localhost pour émulateur Android
 );
 
 class ApiService {
@@ -88,16 +88,18 @@ class ApiService {
 
       // Token expiré ou invalide → on vide la session pour forcer la reconnexion
       if (res.statusCode == 401) {
-        final backendMessage = body['message'] as String? ?? 'Session expirée';
+        // Si on n'a pas de token, c'est une erreur d'authentification directe (ex: mauvais mot de passe au login)
+        // Si on a un token, c'est que la session stockée n'est plus valide.
+        final bool isSessionExpiration = _token != null;
+        final backendMessage = body['message'] as String? ?? (isSessionExpiration ? 'Session expirée' : 'Identifiants invalides');
         
-        // Toujours vider la session si on a un token (session expirée)
-        if (_token != null) {
+        if (isSessionExpiration) {
           clearSession();
         }
 
         return {
           'success': false,
-          'error': 'SESSION_EXPIRED',
+          'error': isSessionExpiration ? 'SESSION_EXPIRED' : 'INVALID_CREDENTIALS',
           'message': backendMessage,
           'statusCode': 401,
         };
@@ -301,6 +303,25 @@ class ApiService {
 
   Future<Map<String, dynamic>> cancelRequest(String id) =>
       delete('/requests/$id');
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // NOTIFICATIONS & PARTAGE
+  // ══════════════════════════════════════════════════════════════════════════
+
+  Future<Map<String, dynamic>> getNotifications() =>
+      get('/notifications');
+
+  Future<Map<String, dynamic>> markNotificationAsRead(String id) =>
+      patch('/notifications/$id/read', {});
+
+  Future<Map<String, dynamic>> listCitizens() =>
+      get('/notifications/citizens');
+
+  Future<Map<String, dynamic>> listAgents() =>
+      get('/notifications/agents');
+
+  Future<Map<String, dynamic>> sendNotificationToCitizen(Map<String, dynamic> body) =>
+      post('/notifications/send', body);
 
   // ══════════════════════════════════════════════════════════════════════════
   // HEALTH

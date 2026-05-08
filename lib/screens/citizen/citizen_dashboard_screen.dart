@@ -21,6 +21,7 @@ class _CitizenDashboardScreenState extends State<CitizenDashboardScreen> {
   Map<String, dynamic>? _userInfo;
   bool   _loading = true;
   String? _error;
+  final TextEditingController _idController = TextEditingController();
 
   @override
   void initState() {
@@ -66,7 +67,53 @@ class _CitizenDashboardScreenState extends State<CitizenDashboardScreen> {
 
   Future<void> _logout() async {
     await AuthService.logout();
+    _idController.dispose();
     _redirectToLogin();
+  }
+
+  Future<void> _fetchByBlockchainId() async {
+    final id = _idController.text.trim();
+    if (id.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Veuillez saisir un ID Blockchain')),
+      );
+      return;
+    }
+
+    setState(() => _loading = true);
+    try {
+      final api = ApiService();
+      // On utilise verifyById pour récupérer les infos complètes
+      final res = await api.verifyById(id);
+
+      if (!mounted) return;
+      setState(() => _loading = false);
+
+      if (res['success'] == true && res['data'] != null) {
+        final birthData = res['data']; // Le backend retourne directement les infos de l'acte
+        if (birthData != null && birthData['childFirstName'] != null) {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => CitizenBirthDetailScreen(birthData: birthData),
+            ),
+          );
+        } else {
+          _showError('Acte introuvable');
+        }
+      } else {
+        _showError(res['error'] ?? 'ID invalide ou acte non trouvé');
+      }
+    } catch (e) {
+      if (mounted) setState(() => _loading = false);
+      _showError('Erreur de recherche');
+    }
+  }
+
+  void _showError(String msg) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(msg), backgroundColor: Colors.red),
+    );
   }
 
   @override
@@ -166,9 +213,88 @@ class _CitizenDashboardScreenState extends State<CitizenDashboardScreen> {
                     title: '${_children.where((c) => c['blockchainHash'] != null).length}',
                     subtitle: 'Certifiés blockchain',
                     icon: Icons.verified_rounded,
-                    color: const Color(0xFF3B82F6),
+                    color: const Color(0xFF06B6D4),
                   ),
                 ]),
+              ),
+            ),
+
+            // ── Section Téléchargement par ID ─────────────────────────────────────
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+                child: Container(
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: const Color(0xFFE2E8F0)),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Télécharger un extrait',
+                        style: GoogleFonts.poppins(
+                          fontSize: 15,
+                          fontWeight: FontWeight.bold,
+                          color: const Color(0xFF0F172A),
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Saisissez l\'ID Blockchain reçu de l\'agent.',
+                        style: GoogleFonts.poppins(
+                          fontSize: 12,
+                          color: const Color(0xFF64748B),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: TextField(
+                              controller: _idController,
+                              decoration: InputDecoration(
+                                hintText: 'Ex: BC-177826...',
+                                hintStyle: GoogleFonts.poppins(fontSize: 13),
+                                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                  borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                                ),
+                                enabledBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                  borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                                ),
+                                focusedBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                  borderSide: const BorderSide(color: Color(0xFF059669)),
+                                ),
+                                filled: true,
+                                fillColor: const Color(0xFFF8FAFC),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Container(
+                            height: 48,
+                            width: 48,
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF059669),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: IconButton(
+                              onPressed: _fetchByBlockchainId,
+                              icon: const Icon(Icons.download_rounded, color: Colors.white),
+                              tooltip: 'Télécharger',
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
               ),
             ),
 
@@ -388,7 +514,7 @@ class _ChildCard extends StatelessWidget {
                     borderRadius: BorderRadius.circular(12)),
                 child: Icon(
                   child['childGender'] == 'F' ? Icons.face_3 : Icons.face,
-                  color: const Color(0xFF3B82F6),
+                  color: const Color(0xFF06B6D4),
                 ),
               ),
               const SizedBox(width: 14),
@@ -418,15 +544,24 @@ class _ChildCard extends StatelessWidget {
                       : const Color(0xFFFEF3C7),
                   borderRadius: BorderRadius.circular(20),
                 ),
-                child: Text(
-                  certified ? 'CERTIFIÉ' : 'EN ATTENTE',
-                  style: GoogleFonts.poppins(
-                    fontSize: 9,
-                    fontWeight: FontWeight.w700,
-                    color: certified
-                        ? const Color(0xFF059669)
-                        : const Color(0xFFF59E0B),
-                  ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (certified) ...[
+                      const Icon(Icons.download_rounded, size: 14, color: Color(0xFF059669)),
+                      const SizedBox(width: 4),
+                    ],
+                    Text(
+                      certified ? 'TÉLÉCHARGER' : 'EN ATTENTE',
+                      style: GoogleFonts.poppins(
+                        fontSize: 9,
+                        fontWeight: FontWeight.w700,
+                        color: certified
+                            ? const Color(0xFF059669)
+                            : const Color(0xFFF59E0B),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ]),

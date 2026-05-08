@@ -239,7 +239,7 @@ class _Card extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = iconColor ?? const Color(0xFF1E3A8A);
+    final color = iconColor ?? const Color(0xFF10B981);
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(18),

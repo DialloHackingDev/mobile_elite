@@ -348,8 +348,9 @@ class _CitizenRegisterScreenState extends State<CitizenRegisterScreen> {
               const SizedBox(height: 24),
               
               // Lien connexion
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
+              Wrap(
+                alignment: WrapAlignment.center,
+                crossAxisAlignment: WrapCrossAlignment.center,
                 children: [
                   Text(
                     'Vous avez déjà un compte ?',

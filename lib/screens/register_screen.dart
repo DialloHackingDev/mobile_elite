@@ -64,7 +64,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final primaryColor = const Color(0xFF1E3A8A);
+    final primaryColor = const Color(0xFF10B981);
 
     return Scaffold(
       backgroundColor: Colors.grey[50],
@@ -490,7 +490,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: Color(0xFF1E3A8A), width: 2),
+          borderSide: const BorderSide(color: Color(0xFF10B981), width: 2),
         ),
         filled: true,
         fillColor: Colors.grey[50],
@@ -522,7 +522,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: Color(0xFF1E3A8A), width: 2),
+          borderSide: const BorderSide(color: Color(0xFF10B981), width: 2),
         ),
         filled: true,
         fillColor: Colors.grey[50],
@@ -564,7 +564,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: Color(0xFF1E3A8A), width: 2),
+          borderSide: const BorderSide(color: Color(0xFF10B981), width: 2),
         ),
         filled: true,
         fillColor: Colors.grey[50],

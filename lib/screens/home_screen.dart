@@ -24,7 +24,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final primaryColor = const Color(0xFF1E3A8A);
+    final primaryColor = const Color(0xFF10B981);
 
     return Scaffold(
       backgroundColor: Colors.grey[50],

@@ -1,17 +1,38 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
+
 import 'services/api_service.dart';
 import 'services/offline_service.dart';
+import 'screens/root_screen.dart';
 import 'screens/role_selection_screen.dart';
+import 'utils/logger.dart';
+import 'widgets/error_boundary.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Configuration du Logger Global
+  FlutterError.onError = (FlutterErrorDetails details) {
+    logError('Flutter Framework Error', details.exception, details.stack);
+  };
+  PlatformDispatcher.instance.onError = (error, stack) {
+    logError('Asynchronous Error', error, stack);
+    return true;
+  };
 
   // Initialiser les services
   await ApiService().initialize();
   await OfflineService().initialize();
 
-  runApp(const MyApp());
+  runApp(
+    const ProviderScope(
+      child: ErrorBoundary(
+        child: MyApp(),
+      ),
+    ),
+  );
 }
 
 class MyApp extends StatelessWidget {
@@ -24,10 +45,10 @@ class MyApp extends StatelessWidget {
       title: 'NaissanceChain',
       theme: ThemeData(
         useMaterial3: true,
-        primaryColor: const Color(0xFF1E3A8A),
+        primaryColor: const Color(0xFF10B981),
         colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFF1E3A8A),
-          primary: const Color(0xFF1E3A8A),
+          seedColor: const Color(0xFF10B981),
+          primary: const Color(0xFF10B981),
           secondary: const Color(0xFF3B82F6),
         ),
         scaffoldBackgroundColor: const Color(0xFFF9FAFB),
@@ -142,7 +163,7 @@ class MyApp extends StatelessWidget {
           labelSmall: GoogleFonts.poppins(),
         ),
       ),
-      home: const RoleSelectionScreen(),
+      home: const RootScreen(),
     );
   }
 }

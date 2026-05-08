@@ -16,10 +16,31 @@ class _CitizenRequestsScreenState extends State<CitizenRequestsScreen> {
   bool _isLoading = true;
   String? _error;
 
+  List<Map<String, dynamic>> _notifications = [];
+
   @override
   void initState() {
     super.initState();
-    _loadRequests();
+    _loadAll();
+  }
+
+  Future<void> _loadAll() async {
+    await Future.wait([
+      _loadRequests(),
+      _loadNotifications(),
+    ]);
+  }
+
+  Future<void> _loadNotifications() async {
+    try {
+      final api = ApiService();
+      final res = await api.getNotifications();
+      if (mounted) {
+        setState(() {
+          _notifications = List<Map<String, dynamic>>.from(res['data'] ?? []);
+        });
+      }
+    } catch (_) {}
   }
 
   Future<void> _loadRequests() async {
@@ -49,7 +70,7 @@ class _CitizenRequestsScreenState extends State<CitizenRequestsScreen> {
       case 'PENDING':
         return const Color(0xFFF59E0B);
       case 'PROCESSING':
-        return const Color(0xFF3B82F6);
+        return const Color(0xFF06B6D4);
       case 'COMPLETED':
         return const Color(0xFF059669);
       case 'REJECTED':
@@ -160,7 +181,7 @@ class _CitizenRequestsScreenState extends State<CitizenRequestsScreen> {
                       _buildStatCard(
                         '${_requests.length}',
                         'Total',
-                        const Color(0xFF3B82F6),
+                        const Color(0xFF06B6D4),
                       ),
                     ],
                   ),
@@ -196,7 +217,97 @@ class _CitizenRequestsScreenState extends State<CitizenRequestsScreen> {
 
               const SliverToBoxAdapter(child: SizedBox(height: 24)),
 
+              // IDs reçus
+              if (_notifications.isNotEmpty) ...[
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 10, 20, 10),
+                    child: Text(
+                      'IDs Reçus (Agents)',
+                      style: GoogleFonts.poppins(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: const Color(0xFF059669),
+                      ),
+                    ),
+                  ),
+                ),
+                SliverList(
+                  delegate: SliverChildBuilderDelegate(
+                    (ctx, i) {
+                      final n = _notifications[i];
+                      return Container(
+                        margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFECFDF5),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: const Color(0xFF10B981).withOpacity(0.2)),
+                        ),
+                        child: Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(10),
+                              decoration: const BoxDecoration(
+                                color: Colors.white,
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Icon(Icons.qr_code_2, color: Color(0xFF059669)),
+                            ),
+                            const SizedBox(width: 16),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    n['title'],
+                                    style: GoogleFonts.poppins(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 14,
+                                    ),
+                                  ),
+                                  Text(
+                                    n['content'],
+                                    style: GoogleFonts.poppins(fontSize: 12),
+                                  ),
+                                  if (n['relatedId'] != null)
+                                    Padding(
+                                      padding: const EdgeInsets.only(top: 8),
+                                      child: SelectableText(
+                                        'ID: ${n['relatedId']}',
+                                        style: GoogleFonts.poppins(
+                                          fontWeight: FontWeight.bold,
+                                          color: const Color(0xFF047857),
+                                        ),
+                                      ),
+                                    ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ).animate().fadeIn().slideX();
+                    },
+                    childCount: _notifications.length,
+                  ),
+                ),
+                const SliverToBoxAdapter(child: SizedBox(height: 20)),
+              ],
+
               // Liste des demandes
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                  child: Text(
+                    'Historique des demandes',
+                    style: GoogleFonts.poppins(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ),
+
               if (_isLoading)
                 const SliverToBoxAdapter(
                   child: Center(child: CircularProgressIndicator()),
@@ -226,15 +337,6 @@ class _CitizenRequestsScreenState extends State<CitizenRequestsScreen> {
                             fontSize: 18,
                             color: Colors.grey[600],
                           ),
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          'Commencez par créer une nouvelle demande',
-                          style: GoogleFonts.poppins(
-                            fontSize: 14,
-                            color: Colors.grey[400],
-                          ),
-                          textAlign: TextAlign.center,
                         ),
                       ],
                     ),

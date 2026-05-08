@@ -126,7 +126,7 @@ class _AgentHistoryScreenState extends State<AgentHistoryScreen> {
                       padding: const EdgeInsets.all(18),
                       decoration: BoxDecoration(
                         gradient: const LinearGradient(
-                            colors: [Color(0xFF0F172A), Color(0xFF1E293B)]),
+                            colors: [Color(0xFF059669), Color(0xFF047857)]),
                         borderRadius: BorderRadius.circular(16),
                       ),
                       child: Row(children: [
@@ -159,7 +159,7 @@ class _AgentHistoryScreenState extends State<AgentHistoryScreen> {
                           padding: const EdgeInsets.symmetric(
                               horizontal: 14, vertical: 10),
                           decoration: BoxDecoration(
-                            color: const Color(0xFF059669),
+                            color: const Color(0xFF0F172A),
                             borderRadius: BorderRadius.circular(12),
                           ),
                           child: Row(children: [
@@ -329,8 +329,8 @@ class _AgentHistoryScreenState extends State<AgentHistoryScreen> {
         onPressed: () => Navigator.push(context,
                 MaterialPageRoute(builder: (_) => const AgentSyncScreen()))
             .then((_) => _load()),
-        backgroundColor: const Color(0xFF0F172A),
-        child: const Icon(Icons.sync_rounded),
+        backgroundColor: const Color(0xFF059669),
+        child: const Icon(Icons.sync_rounded, color: Colors.white),
       ),
     );
   }
@@ -359,7 +359,7 @@ class _Chip extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
           decoration: BoxDecoration(
-            color: active ? const Color(0xFF0F172A) : const Color(0xFFF1F5F9),
+            color: active ? const Color(0xFF059669) : const Color(0xFFF1F5F9),
             borderRadius: BorderRadius.circular(20),
           ),
           child: Row(mainAxisSize: MainAxisSize.min, children: [

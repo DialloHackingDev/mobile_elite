@@ -86,7 +86,7 @@ class _CitizenLoginScreenState extends State<CitizenLoginScreen> {
                   height: 70,
                   decoration: BoxDecoration(
                     gradient: const LinearGradient(
-                      colors: [Color(0xFF3B82F6), Color(0xFF2563EB)],
+                      colors: [Color(0xFF06B6D4), Color(0xFF2563EB)],
                     ),
                     borderRadius: BorderRadius.circular(20),
                   ),
@@ -171,7 +171,7 @@ class _CitizenLoginScreenState extends State<CitizenLoginScreen> {
                         ),
                         focusedBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(color: Color(0xFF3B82F6), width: 2),
+                          borderSide: const BorderSide(color: Color(0xFF06B6D4), width: 2),
                         ),
                         filled: true,
                         fillColor: const Color(0xFFF8FAFC),
@@ -230,7 +230,7 @@ class _CitizenLoginScreenState extends State<CitizenLoginScreen> {
                         ),
                         focusedBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(color: Color(0xFF3B82F6), width: 2),
+                          borderSide: const BorderSide(color: Color(0xFF06B6D4), width: 2),
                         ),
                         filled: true,
                         fillColor: const Color(0xFFF8FAFC),

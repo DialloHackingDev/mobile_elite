@@ -116,7 +116,7 @@ class _BirthDetailScreenState extends State<BirthDetailScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
       appBar: AppBar(
-        backgroundColor: darkBg,
+        backgroundColor: green,
         elevation: 0,
         title: Text(
           'Détail de l\'acte',

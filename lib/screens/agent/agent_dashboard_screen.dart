@@ -401,7 +401,7 @@ class _HomeTab extends StatelessWidget {
                             b['childGender'] == 'F'
                                 ? Icons.face_3
                                 : Icons.face,
-                            color: const Color(0xFF3B82F6),
+                            color: const Color(0xFF06B6D4),
                           ),
                         ),
                         const SizedBox(width: 12),
