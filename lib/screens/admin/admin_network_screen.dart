@@ -26,8 +26,8 @@ class _AdminNetworkScreenState extends State<AdminNetworkScreen> {
   Future<Map<String, dynamic>> _loadNetworkFromAPI() async {
     try {
       final api = ApiService();
-      final response = await api.get('/dashboard/network');
-      return response ?? {};
+      final response = await api.getFast('/dashboard/network');
+      return response;
     } catch (e) {
       print('Erreur chargement réseau: $e');
       return {};

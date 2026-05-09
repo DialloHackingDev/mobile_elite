@@ -34,7 +34,7 @@ class _AdminAgentsScreenState extends State<AdminAgentsScreen> {
     setState(() => _isLoading = true);
     try {
       final api = ApiService();
-      final response = await api.get('/dashboard/agents');
+      final response = await api.getFast('/dashboard/agents');
       if (mounted) {
         setState(() {
           final data = response?['data'] as Map<String, dynamic>?;

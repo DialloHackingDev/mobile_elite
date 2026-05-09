@@ -26,8 +26,8 @@ class _AdminAuditScreenState extends State<AdminAuditScreen> {
   Future<Map<String, dynamic>> _loadAuditFromAPI() async {
     try {
       final api = ApiService();
-      final response = await api.get('/dashboard/audit');
-      return response ?? {'births': [], 'agents': [], 'total': 0};
+      final response = await api.getFast('/dashboard/audit');
+      return response;
     } catch (e) {
       // ignore: avoid_print
       print('Erreur chargement audit: $e');

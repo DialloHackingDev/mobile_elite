@@ -9,7 +9,9 @@ import '../../services/auth_service.dart';
 import '../success_screen.dart';
 
 class AgentRegisterWizardScreen extends StatefulWidget {
-  const AgentRegisterWizardScreen({super.key});
+  final Map<String, dynamic>? initialRequest;
+
+  const AgentRegisterWizardScreen({super.key, this.initialRequest});
 
   @override
   State<AgentRegisterWizardScreen> createState() => _AgentRegisterWizardScreenState();
@@ -68,6 +70,40 @@ class _AgentRegisterWizardScreenState extends State<AgentRegisterWizardScreen> {
     super.initState();
     _checkConnectivity();
     _getCurrentLocation();
+    
+    // Si une demande a été passée, on pré-remplit les champs
+    if (widget.initialRequest != null) {
+      final req = widget.initialRequest!;
+      _prenom.text = req['childFirstName'] ?? '';
+      _nom.text = req['childLastName'] ?? '';
+      _sexe.text = req['childGender'] ?? 'M';
+      
+      if (req['birthDate'] != null) {
+        _dateNaissance.text = DateFormat('yyyy-MM-dd').format(DateTime.parse(req['birthDate']));
+      }
+      _heureNaissance.text = req['timeOfBirth'] ?? '';
+      _lieuNaissance.text = req['placeOfBirth'] ?? '';
+      
+      _nomMere.text = req['motherFullName'] ?? '';
+      if (req['motherDob'] != null) {
+        _dateMere.text = DateFormat('yyyy-MM-dd').format(DateTime.parse(req['motherDob']));
+      }
+      _prefectureMere.text = req['motherPrefecture'] ?? '';
+      _cniMere.text = req['motherCni'] ?? '';
+      
+      _nomPere.text = req['fatherFullName'] ?? '';
+      if (req['fatherDob'] != null) {
+        _datePere.text = DateFormat('yyyy-MM-dd').format(DateTime.parse(req['fatherDob']));
+      }
+      _cniPere.text = req['fatherCni'] ?? '';
+      
+      _temoin1Nom.text = req['witness1FullName'] ?? '';
+      _temoin1Cni.text = req['witness1Cni'] ?? '';
+      _temoin2Nom.text = req['witness2FullName'] ?? '';
+      _temoin2Cni.text = req['witness2Cni'] ?? '';
+      
+      _telephoneParent.text = req['phoneNumber'] ?? '';
+    }
   }
 
   Future<void> _checkConnectivity() async {
@@ -126,72 +162,102 @@ class _AgentRegisterWizardScreenState extends State<AgentRegisterWizardScreen> {
         'isLateRegistration': false,
       };
 
-      if (_isOnline) {
-        final result = await _apiService.registerBirth(birthData);
+      if (widget.initialRequest != null) {
+        // Appeler le endpoint de validation de demande
+        final res = await _apiService.post('/requests/${widget.initialRequest!['id']}/validate', birthData);
         setState(() => _isLoading = false);
-
-        if (result['success'] && mounted) {
-          final data = result['data'];
-          Navigator.of(context).pushReplacement(
+        
+        if (mounted && res != null && res['status'] == 'success') {
+          // Extraire le birth ID et le national ID pour la suite si nécessaire
+          final nationalId = res['data']?['birth']?['nationalId'] ?? 'N/A';
+          
+          Navigator.pushReplacement(
+            context,
             MaterialPageRoute(
-              builder: (_) => SuccessScreen(
-                babyName: "${_prenom.text} ${_nom.text}",
-                birthDate: _dateNaissance.text,
-                birthPlace: _lieuNaissance.text,
-                fatherName: _nomPere.text.isEmpty ? "Non renseigné" : _nomPere.text,
-                motherName: _nomMere.text,
-                blockchainId: data['blockchainHash'] ?? QRService.generateBlockchainId(),
-                nationalId: data['nationalId'],
-                isOffline: false,
-              ),
-            ),
-          );
-        } else {
-          _showError(result['error'] ?? 'Erreur d\'enregistrement');
-        }
-      } else {
-        // Mode hors-ligne
-        final agent = AuthService.currentAgent;
-        await _offlineService.saveOfflineBirth(
-          childFirstName: _prenom.text,
-          childLastName: _nom.text,
-          childGender: _sexe.text,
-          dateOfBirth: _dateNaissance.text,
-          placeOfBirth: _lieuNaissance.text,
-          motherFullName: _nomMere.text,
-          motherDob: _dateMere.text,
-          motherPrefecture: _prefectureMere.text,
-          establishmentCode: _codeEtablissement.text,
-          agentId: agent?.id ?? 'unknown',
-          timeOfBirth: _heureNaissance.text.isEmpty ? null : _heureNaissance.text,
-          motherCni: _cniMere.text.isEmpty ? null : _cniMere.text,
-          fatherFullName: _nomPere.text.isEmpty ? null : _nomPere.text,
-          fatherDob: _datePere.text.isEmpty ? null : _datePere.text,
-          fatherCni: _cniPere.text.isEmpty ? null : _cniPere.text,
-          gpsCoordinates: _gpsCoordinates,
-          parentPhoneNumber: _telephoneParent.text.isEmpty ? null : _telephoneParent.text,
-          witness1FullName: _temoin1Nom.text.isEmpty ? null : _temoin1Nom.text,
-          witness1Cni: _temoin1Cni.text.isEmpty ? null : _temoin1Cni.text,
-          witness2FullName: _temoin2Nom.text.isEmpty ? null : _temoin2Nom.text,
-          witness2Cni: _temoin2Cni.text.isEmpty ? null : _temoin2Cni.text,
-        );
-        setState(() => _isLoading = false);
-
-        if (mounted) {
-          Navigator.of(context).pushReplacement(
-            MaterialPageRoute(
-              builder: (_) => SuccessScreen(
+              builder: (context) => SuccessScreen(
                 babyName: "${_prenom.text} ${_nom.text}",
                 birthDate: _dateNaissance.text,
                 birthPlace: _lieuNaissance.text,
                 fatherName: _nomPere.text.isEmpty ? "Non renseigné" : _nomPere.text,
                 motherName: _nomMere.text,
                 blockchainId: QRService.generateBlockchainId(),
-                nationalId: null,
-                isOffline: true,
+                nationalId: nationalId,
+                isOffline: false,
               ),
             ),
           );
+        } else {
+          throw Exception(res?['message'] ?? 'Erreur lors de la validation');
+        }
+      } else {
+        // Flux standard
+        if (_isOnline) {
+          final result = await _apiService.registerBirth(birthData);
+          setState(() => _isLoading = false);
+
+          if (result['success'] && mounted) {
+            final data = result['data'];
+            Navigator.of(context).pushReplacement(
+              MaterialPageRoute(
+                builder: (_) => SuccessScreen(
+                  babyName: "${_prenom.text} ${_nom.text}",
+                  birthDate: _dateNaissance.text,
+                  birthPlace: _lieuNaissance.text,
+                  fatherName: _nomPere.text.isEmpty ? "Non renseigné" : _nomPere.text,
+                  motherName: _nomMere.text,
+                  blockchainId: data['blockchainHash'] ?? QRService.generateBlockchainId(),
+                  nationalId: data['nationalId'],
+                  isOffline: false,
+                ),
+              ),
+            );
+          } else {
+            _showError(result['error'] ?? 'Erreur d\'enregistrement');
+          }
+        } else {
+          // Mode hors-ligne
+          final agent = AuthService.currentAgent;
+          await _offlineService.saveOfflineBirth(
+            childFirstName: _prenom.text,
+            childLastName: _nom.text,
+            childGender: _sexe.text,
+            dateOfBirth: _dateNaissance.text,
+            placeOfBirth: _lieuNaissance.text,
+            motherFullName: _nomMere.text,
+            motherDob: _dateMere.text,
+            motherPrefecture: _prefectureMere.text,
+            establishmentCode: _codeEtablissement.text,
+            agentId: agent?.id ?? 'unknown',
+            timeOfBirth: _heureNaissance.text.isEmpty ? null : _heureNaissance.text,
+            motherCni: _cniMere.text.isEmpty ? null : _cniMere.text,
+            fatherFullName: _nomPere.text.isEmpty ? null : _nomPere.text,
+            fatherDob: _datePere.text.isEmpty ? null : _datePere.text,
+            fatherCni: _cniPere.text.isEmpty ? null : _cniPere.text,
+            gpsCoordinates: _gpsCoordinates,
+            parentPhoneNumber: _telephoneParent.text.isEmpty ? null : _telephoneParent.text,
+            witness1FullName: _temoin1Nom.text.isEmpty ? null : _temoin1Nom.text,
+            witness1Cni: _temoin1Cni.text.isEmpty ? null : _temoin1Cni.text,
+            witness2FullName: _temoin2Nom.text.isEmpty ? null : _temoin2Nom.text,
+            witness2Cni: _temoin2Cni.text.isEmpty ? null : _temoin2Cni.text,
+          );
+          setState(() => _isLoading = false);
+
+          if (mounted) {
+            Navigator.of(context).pushReplacement(
+              MaterialPageRoute(
+                builder: (_) => SuccessScreen(
+                  babyName: "${_prenom.text} ${_nom.text}",
+                  birthDate: _dateNaissance.text,
+                  birthPlace: _lieuNaissance.text,
+                  fatherName: _nomPere.text.isEmpty ? "Non renseigné" : _nomPere.text,
+                  motherName: _nomMere.text,
+                  blockchainId: QRService.generateBlockchainId(),
+                  nationalId: null,
+                  isOffline: true,
+                ),
+              ),
+            );
+          }
         }
       }
     } catch (e) {

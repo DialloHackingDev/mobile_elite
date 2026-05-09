@@ -25,6 +25,7 @@ class _AgentDashboardScreenState extends State<AgentDashboardScreen> {
   Map<String, dynamic>? _stats;
   List<Map<String, dynamic>> _recentBirths = [];
   List<Map<String, dynamic>> _pendingSync  = [];
+  List<Map<String, dynamic>> _pendingRequests = [];
   bool   _loadingHome = true;
 
   @override
@@ -56,6 +57,9 @@ class _AgentDashboardScreenState extends State<AgentDashboardScreen> {
       }
 
       final pending = await offline.getOfflineBirths();
+      
+      final reqRes = await api.get('/requests/pending/all');
+      final requests = reqRes?['data'] as List? ?? [];
 
       if (!mounted) return;
       setState(() {
@@ -64,6 +68,7 @@ class _AgentDashboardScreenState extends State<AgentDashboardScreen> {
         _recentBirths = List<Map<String, dynamic>>.from(
             birthsData?['births'] ?? []);
         _pendingSync  = pending;
+        _pendingRequests = requests.cast<Map<String, dynamic>>();
         _loadingHome  = false;
       });
     } catch (_) {
@@ -99,6 +104,7 @@ class _AgentDashboardScreenState extends State<AgentDashboardScreen> {
       ),
       const AgentRegisterWizardScreen(),
       const AgentHistoryScreen(),
+      _RequestsTab(requests: _pendingRequests, onRefresh: _loadHome),
       AgentProfileScreen(onLogout: _logout),
     ];
 
@@ -546,10 +552,11 @@ class _BottomNav extends StatelessWidget {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
-              _NavItem(icon: Icons.home_rounded,      label: 'Accueil',  active: current == 0, onTap: () => onTap(0)),
+              _NavItem(icon: Icons.dashboard_rounded, label: 'Accueil',  active: current == 0, onTap: () => onTap(0)),
               _NavItem(icon: Icons.person_add_alt_1,  label: 'Enreg.',   active: current == 1, onTap: () => onTap(1)),
               _NavItem(icon: Icons.history_rounded,   label: 'Historique', active: current == 2, onTap: () => onTap(2), badge: pendingCount),
-              _NavItem(icon: Icons.settings_rounded,  label: 'Profil',   active: current == 3, onTap: () => onTap(3)),
+              _NavItem(icon: Icons.assignment,        label: 'Demandes', active: current == 3, onTap: () => onTap(3)),
+              _NavItem(icon: Icons.settings_rounded,  label: 'Profil',   active: current == 4, onTap: () => onTap(4)),
             ],
           ),
         ),
@@ -614,4 +621,70 @@ class _NavItem extends StatelessWidget {
           ]),
         ),
       );
+}
+
+class _RequestsTab extends StatelessWidget {
+  final List<Map<String, dynamic>> requests;
+  final VoidCallback onRefresh;
+
+  const _RequestsTab({required this.requests, required this.onRefresh});
+
+  @override
+  Widget build(BuildContext context) {
+    return RefreshIndicator(
+      onRefresh: () async => onRefresh(),
+      color: const Color(0xFF10B981),
+      child: requests.isEmpty
+          ? Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.assignment_turned_in_outlined, size: 48, color: Colors.grey.withOpacity(0.4)),
+                  const SizedBox(height: 12),
+                  Text('Aucune demande assignée en attente', style: GoogleFonts.poppins(color: const Color(0xFF64748B))),
+                ],
+              ),
+            )
+          : ListView.builder(
+              padding: const EdgeInsets.all(16).copyWith(top: 48),
+              itemCount: requests.length,
+              itemBuilder: (context, index) {
+                final req = requests[index];
+                return Card(
+                  margin: const EdgeInsets.only(bottom: 12),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  elevation: 0,
+                  color: Colors.white,
+                  child: ListTile(
+                    contentPadding: const EdgeInsets.all(16),
+                    leading: CircleAvatar(
+                      backgroundColor: const Color(0xFF10B981).withOpacity(0.1),
+                      child: const Icon(Icons.description, color: Color(0xFF10B981)),
+                    ),
+                    title: Text(req['childFirstName'] != null ? '${req['childFirstName']} ${req['childLastName']}' : 'Demande d\'acte', style: GoogleFonts.poppins(fontWeight: FontWeight.w600)),
+                    subtitle: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Demandeur: ${req['citizen']?['fullName'] ?? 'N/A'}'),
+                        Text('Tél: ${req['citizen']?['phoneNumber'] ?? 'N/A'}'),
+                      ],
+                    ),
+                    trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                    onTap: () async {
+                      final result = await Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => AgentRegisterWizardScreen(initialRequest: req),
+                        ),
+                      );
+                      if (result == true) {
+                        onRefresh();
+                      }
+                    },
+                  ),
+                );
+              },
+            ),
+    );
+  }
 }

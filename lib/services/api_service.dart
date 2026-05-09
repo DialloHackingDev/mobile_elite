@@ -11,7 +11,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 // Surcharger via : flutter run --dart-define=API_BASE_URL=http://X.X.X.X:3000/api
 const String _kBaseUrl = String.fromEnvironment(
   'API_BASE_URL',
-  defaultValue: 'http://10.0.2.2:3000/api',  // Localhost pour émulateur Android
+  defaultValue: 'http://192.168.1.107:3000/api',  // IP locale pour appareil physique
 );
 
 class ApiService {
@@ -126,11 +126,53 @@ class ApiService {
     try {
       final res = await http
           .get(Uri.parse('$baseUrl$path'), headers: _headers(auth: auth))
-          .timeout(const Duration(seconds: 30));
-      return _parse(res);
+          .timeout(const Duration(seconds: 15));
+      final parsed = _parse(res);
+      
+      if (parsed['success'] == true || parsed['statusCode'] == 200) {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString('cache_$path', jsonEncode(parsed));
+      }
+      return parsed;
     } catch (e) {
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        final cachedStr = prefs.getString('cache_$path');
+        if (cachedStr != null) {
+          return jsonDecode(cachedStr) as Map<String, dynamic>;
+        }
+      } catch (_) {}
       return {'success': false, 'error': 'Erreur réseau: $e'};
     }
+  }
+
+  /// Récupération ultra-rapide (Stale-While-Revalidate)
+  /// Retourne le cache immédiatement s'il existe, puis met à jour le cache en arrière-plan.
+  /// Si pas de cache, attend la réponse réseau.
+  Future<Map<String, dynamic>> getFast(String path, {bool auth = true}) async {
+    final prefs = await SharedPreferences.getInstance();
+    final cachedStr = prefs.getString('cache_$path');
+    
+    final networkFuture = http
+        .get(Uri.parse('$baseUrl$path'), headers: _headers(auth: auth))
+        .timeout(const Duration(seconds: 15))
+        .then((res) async {
+          final parsed = _parse(res);
+          if (parsed['success'] == true || parsed['statusCode'] == 200) {
+            await prefs.setString('cache_$path', jsonEncode(parsed));
+          }
+          return parsed;
+        }).catchError((_) => <String, dynamic>{'success': false});
+
+    if (cachedStr != null) {
+      try {
+        return jsonDecode(cachedStr) as Map<String, dynamic>;
+      } catch (_) {}
+    }
+
+    final networkResult = await networkFuture;
+    if (networkResult.containsKey('statusCode')) return networkResult;
+    return {'success': false, 'error': 'Erreur réseau'};
   }
 
   Future<Map<String, dynamic>> post(
@@ -142,10 +184,10 @@ class ApiService {
       final res = await http
           .post(Uri.parse('$baseUrl$path'),
               headers: _headers(auth: auth), body: jsonEncode(body))
-          .timeout(const Duration(seconds: 60));
+          .timeout(const Duration(seconds: 15));
       return _parse(res);
     } catch (e) {
-      return {'success': false, 'error': 'Erreur réseau: $e'};
+      return {'success': false, 'error': 'Erreur réseau: Impossible de joindre le serveur'};
     }
   }
 

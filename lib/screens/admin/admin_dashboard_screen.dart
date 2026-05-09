@@ -37,9 +37,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     setState(() => _isLoading = true);
     try {
       final api = ApiService();
-      // Récupérer les vraies données du backend
-      final statsRes = await api.get('/dashboard/stats');
-      final mapRes = await api.get('/dashboard/map');
+      // Récupérer les données avec cache (ultra-rapide)
+      final statsRes = await api.getFast('/dashboard/stats');
+      final mapRes = await api.getFast('/dashboard/map');
       
       if (statsRes?['statusCode'] == 401) {
         if (mounted) {
@@ -74,7 +74,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   Future<void> _loadRequests() async {
     try {
       final api = ApiService();
-      final res = await api.get('/requests/pending/all');
+      final res = await api.getFast('/requests/pending/all');
       if (mounted && res != null && res['status'] == 'success') {
         setState(() {
           _pendingRequests = (res['data'] as List?)?.cast<Map<String, dynamic>>() ?? [];
@@ -1204,7 +1204,7 @@ class _RequestsTab extends StatelessWidget {
                       backgroundColor: const Color(0xFF10B981).withOpacity(0.1),
                       child: const Icon(Icons.description, color: Color(0xFF10B981)),
                     ),
-                    title: Text(req['childName'] ?? 'Enfant', style: GoogleFonts.poppins(fontWeight: FontWeight.w600)),
+                    title: Text(req['childFirstName'] != null ? '${req['childFirstName']} ${req['childLastName']}' : 'Demande d\'acte', style: GoogleFonts.poppins(fontWeight: FontWeight.w600)),
                     subtitle: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -1212,19 +1212,18 @@ class _RequestsTab extends StatelessWidget {
                         Text('Tél: ${req['citizen']?['phoneNumber'] ?? 'N/A'}'),
                       ],
                     ),
-                    trailing: PopupMenuButton<String>(
-                      onSelected: (val) async {
-                        final api = ApiService();
-                        final res = await api.patch('/requests/${req['id']}/status', {'status': val, 'notes': 'Traité par admin'});
-                        if (res['success'] == true) {
-                          onRefresh();
-                        }
-                      },
-                      itemBuilder: (context) => [
-                        const PopupMenuItem(value: 'APPROVED', child: Text('Approuver')),
-                        const PopupMenuItem(value: 'REJECTED', child: Text('Rejeter')),
-                      ],
-                    ),
+                    trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                    onTap: () async {
+                      final result = await Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => AgentRegisterWizardScreen(initialRequest: req),
+                        ),
+                      );
+                      if (result == true) {
+                        onRefresh();
+                      }
+                    },
                   ),
                 );
               },

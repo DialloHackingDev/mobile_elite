@@ -15,14 +15,29 @@ class _CitizenNewRequestScreenState extends State<CitizenNewRequestScreen> {
   String _deliveryMethod = 'DIGITAL';
   final _childFirstNameController = TextEditingController();
   final _childLastNameController = TextEditingController();
+  final _timeOfBirthController = TextEditingController();
+  final _placeOfBirthController = TextEditingController();
+  
   final _fatherNameController = TextEditingController();
+  final _fatherCniController = TextEditingController();
+  
   final _motherNameController = TextEditingController();
+  final _motherCniController = TextEditingController();
+  final _motherPrefectureController = TextEditingController();
+  
+  final _witness1NameController = TextEditingController();
+  final _witness1CniController = TextEditingController();
+  final _witness2NameController = TextEditingController();
+  final _witness2CniController = TextEditingController();
+
   final _phoneController = TextEditingController();
   final _emailController = TextEditingController();
   final _addressController = TextEditingController();
   final _notesController = TextEditingController();
   
   DateTime? _selectedBirthDate;
+  DateTime? _selectedMotherDob;
+  DateTime? _selectedFatherDob;
   String _selectedGender = 'M';
   
   bool _isLoading = false;
@@ -70,11 +85,27 @@ class _CitizenNewRequestScreenState extends State<CitizenNewRequestScreen> {
       await api.createRequest({
         'type': _requestType,
         'deliveryMethod': _deliveryMethod,
-        'childName': '${_childFirstNameController.text} ${_childLastNameController.text}'.trim(),
+        'childFirstName': _childFirstNameController.text.trim(),
+        'childLastName': _childLastNameController.text.trim(),
         'birthDate': _selectedBirthDate?.toIso8601String(),
-        'gender': _selectedGender,
-        'fatherName': _fatherNameController.text.isNotEmpty ? _fatherNameController.text : null,
-        'motherName': _motherNameController.text.isNotEmpty ? _motherNameController.text : null,
+        'timeOfBirth': _timeOfBirthController.text.trim(),
+        'placeOfBirth': _placeOfBirthController.text.trim(),
+        'childGender': _selectedGender,
+        
+        'fatherFullName': _fatherNameController.text.trim(),
+        'fatherDob': _selectedFatherDob?.toIso8601String(),
+        'fatherCni': _fatherCniController.text.trim(),
+        
+        'motherFullName': _motherNameController.text.trim(),
+        'motherDob': _selectedMotherDob?.toIso8601String(),
+        'motherCni': _motherCniController.text.trim(),
+        'motherPrefecture': _motherPrefectureController.text.trim(),
+        
+        'witness1FullName': _witness1NameController.text.trim(),
+        'witness1Cni': _witness1CniController.text.trim(),
+        'witness2FullName': _witness2NameController.text.trim(),
+        'witness2Cni': _witness2CniController.text.trim(),
+
         'phoneNumber': _phoneController.text.isNotEmpty ? _phoneController.text : null,
         'email': _emailController.text.isNotEmpty ? _emailController.text : null,
         'address': _addressController.text.isNotEmpty ? _addressController.text : null,
@@ -334,6 +365,29 @@ class _CitizenNewRequestScreenState extends State<CitizenNewRequestScreen> {
                           ),
                         ],
                       ),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: TextFormField(
+                              controller: _timeOfBirthController,
+                              decoration: InputDecoration(
+                                labelText: 'Heure de naissance (ex: 14:30)',
+                                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: TextFormField(
+                              controller: _placeOfBirthController,
+                              decoration: InputDecoration(
+                                labelText: 'Lieu de naissance',
+                                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
                     ],
                   ),
                 ),
@@ -346,7 +400,93 @@ class _CitizenNewRequestScreenState extends State<CitizenNewRequestScreen> {
                 child: Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 20),
                   child: Text(
-                    'Parents',
+                    'Informations de la Mère',
+                    style: GoogleFonts.poppins(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ),
+
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    children: [
+                      TextFormField(
+                        controller: _motherNameController,
+                        decoration: InputDecoration(
+                          labelText: 'Nom complet de la mère',
+                          prefixIcon: const Icon(Icons.person),
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                        ),
+                        validator: (v) => v!.isEmpty ? 'Requis' : null,
+                      ),
+                      const SizedBox(height: 16),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: InkWell(
+                              onTap: () async {
+                                final date = await showDatePicker(
+                                  context: context,
+                                  initialDate: DateTime(1990),
+                                  firstDate: DateTime(1930),
+                                  lastDate: DateTime.now(),
+                                );
+                                if (date != null) setState(() => _selectedMotherDob = date);
+                              },
+                              child: Container(
+                                padding: const EdgeInsets.all(16),
+                                decoration: BoxDecoration(
+                                  border: Border.all(color: Colors.grey),
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: Row(
+                                  children: [
+                                    const Icon(Icons.calendar_today, size: 18),
+                                    const SizedBox(width: 10),
+                                    Text(_selectedMotherDob == null 
+                                      ? 'Date de naissance' 
+                                      : '${_selectedMotherDob!.day}/${_selectedMotherDob!.month}/${_selectedMotherDob!.year}'),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      TextFormField(
+                        controller: _motherCniController,
+                        decoration: InputDecoration(
+                          labelText: 'Numéro CNI Mère',
+                          prefixIcon: const Icon(Icons.badge),
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      TextFormField(
+                        controller: _motherPrefectureController,
+                        decoration: InputDecoration(
+                          labelText: 'Préfecture de résidence',
+                          prefixIcon: const Icon(Icons.location_city),
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+
+              const SliverToBoxAdapter(child: SizedBox(height: 24)),
+
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: Text(
+                    'Informations du Père (Optionnel)',
                     style: GoogleFonts.poppins(
                       fontSize: 16,
                       fontWeight: FontWeight.w600,
@@ -369,11 +509,101 @@ class _CitizenNewRequestScreenState extends State<CitizenNewRequestScreen> {
                         ),
                       ),
                       const SizedBox(height: 16),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: InkWell(
+                              onTap: () async {
+                                final date = await showDatePicker(
+                                  context: context,
+                                  initialDate: DateTime(1985),
+                                  firstDate: DateTime(1930),
+                                  lastDate: DateTime.now(),
+                                );
+                                if (date != null) setState(() => _selectedFatherDob = date);
+                              },
+                              child: Container(
+                                padding: const EdgeInsets.all(16),
+                                decoration: BoxDecoration(
+                                  border: Border.all(color: Colors.grey),
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: Row(
+                                  children: [
+                                    const Icon(Icons.calendar_today, size: 18),
+                                    const SizedBox(width: 10),
+                                    Text(_selectedFatherDob == null 
+                                      ? 'Date de naissance' 
+                                      : '${_selectedFatherDob!.day}/${_selectedFatherDob!.month}/${_selectedFatherDob!.year}'),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
                       TextFormField(
-                        controller: _motherNameController,
+                        controller: _fatherCniController,
                         decoration: InputDecoration(
-                          labelText: 'Nom complet de la mère',
-                          prefixIcon: const Icon(Icons.person),
+                          labelText: 'Numéro CNI Père',
+                          prefixIcon: const Icon(Icons.badge),
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+
+              const SliverToBoxAdapter(child: SizedBox(height: 24)),
+
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: Text(
+                    'Témoins',
+                    style: GoogleFonts.poppins(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ),
+
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    children: [
+                      TextFormField(
+                        controller: _witness1NameController,
+                        decoration: InputDecoration(
+                          labelText: 'Nom du Témoin 1',
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      TextFormField(
+                        controller: _witness1CniController,
+                        decoration: InputDecoration(
+                          labelText: 'CNI du Témoin 1',
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      TextFormField(
+                        controller: _witness2NameController,
+                        decoration: InputDecoration(
+                          labelText: 'Nom du Témoin 2',
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      TextFormField(
+                        controller: _witness2CniController,
+                        decoration: InputDecoration(
+                          labelText: 'CNI du Témoin 2',
                           border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                         ),
                       ),
