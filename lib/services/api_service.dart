@@ -309,6 +309,28 @@ class ApiService {
 
   Future<Map<String, dynamic>> getMyChildren() => get('/citizen/my-children');
 
+  /// Cherche un acte par nationalId (ex: GN-2026-MAL-8888333)
+  Future<Map<String, dynamic>> getBirthByNationalId(String nationalId) =>
+      get('/citizen/birth/$nationalId');
+
+  /// Télécharge le PDF d'un acte — accepte un UUID ou un nationalId
+  Future<List<int>?> downloadCertificateBytes(String birthId) async {
+    try {
+      final token = await _getToken();
+      final res = await http
+          .get(Uri.parse('$baseUrl/citizen/certificate/$birthId'),
+              headers: {
+                'Content-Type': 'application/json',
+                if (token != null) 'Authorization': 'Bearer $token',
+              })
+          .timeout(const Duration(seconds: 30));
+      if (res.statusCode == 200) return res.bodyBytes.toList();
+      return null;
+    } catch (_) {
+      return null;
+    }
+  }
+
   // ══════════════════════════════════════════════════════════════════════════
   // DASHBOARD
   // ══════════════════════════════════════════════════════════════════════════
