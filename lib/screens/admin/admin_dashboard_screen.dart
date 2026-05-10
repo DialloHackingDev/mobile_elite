@@ -13,7 +13,7 @@ import '../agent/agent_register_wizard_screen.dart';
 /// Tableau de bord Admin - Supervision nationale du système
 class AdminDashboardScreen extends StatefulWidget {
   final Agent admin;
-  
+
   const AdminDashboardScreen({super.key, required this.admin});
 
   @override
@@ -40,7 +40,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       // Récupérer les données avec cache (ultra-rapide)
       final statsRes = await api.getFast('/dashboard/stats');
       final mapRes = await api.getFast('/dashboard/map');
-      
+
       if (statsRes?['statusCode'] == 401) {
         if (mounted) {
           AuthService.logout().then((_) {
@@ -53,7 +53,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         }
         return;
       }
-      
+
       if (mounted) {
         setState(() {
           _nationalStats = statsRes?['data'] ?? statsRes;
@@ -75,9 +75,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     try {
       final api = ApiService();
       final res = await api.getFast('/requests/pending/all');
-      if (mounted && res != null && res['status'] == 'success') {
+      if (mounted && res != null && res['success'] == true) {
         setState(() {
-          _pendingRequests = (res['data'] as List?)?.cast<Map<String, dynamic>>() ?? [];
+          _pendingRequests =
+              (res['data'] as List?)?.cast<Map<String, dynamic>>() ?? [];
         });
       }
     } catch (e) {
@@ -167,7 +168,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
               onPressed: () {
                 Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (_) => const AgentRegisterWizardScreen()),
+                  MaterialPageRoute(
+                      builder: (_) => const AgentRegisterWizardScreen()),
                 ).then((_) => _loadNationalData());
               },
               backgroundColor: const Color(0xFF10B981),
@@ -515,7 +517,9 @@ class _KpiCard extends StatelessWidget {
                 if (trendUp != null)
                   Icon(
                     trendUp! ? Icons.trending_up : Icons.trending_down,
-                    color: trendUp! ? const Color(0xFF059669) : const Color(0xFFDC2626),
+                    color: trendUp!
+                        ? const Color(0xFF059669)
+                        : const Color(0xFFDC2626),
                     size: 14,
                   ),
                 if (trendUp != null) const SizedBox(width: 4),
@@ -570,7 +574,8 @@ class _GeographicActivityCard extends StatelessWidget {
                 ),
               ),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                 decoration: BoxDecoration(
                   color: const Color(0xFFF1F5F9),
                   borderRadius: BorderRadius.circular(20),
@@ -604,7 +609,8 @@ class _GeographicActivityCard extends StatelessWidget {
                 shape: const RoundedRectangleBorder(
                   borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
                 ),
-                builder: (context) => _RegionDetailsSheet(regionalData: regionalData),
+                builder: (context) =>
+                    _RegionDetailsSheet(regionalData: regionalData),
               );
             },
             child: Container(
@@ -657,7 +663,7 @@ class _MonthlyGoalsCard extends StatelessWidget {
     // Calcul simple pour la démo
     final birthsThisMonth = (stats?['birthsThisMonth'] ?? 0) as int;
     final target = 500; // Objectif arbitraire de 500 par mois
-    
+
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -768,7 +774,7 @@ class _RegionalStatsCard extends StatelessWidget {
   Widget build(BuildContext context) {
     // Transformer les données du backend pour l'affichage
     final List<Map<String, dynamic>> regions = [];
-    
+
     if (regionalData != null && regionalData!['prefectures'] != null) {
       final List prefList = regionalData!['prefectures'];
       for (var i = 0; i < prefList.length; i++) {
@@ -800,7 +806,7 @@ class _RegionalStatsCard extends StatelessWidget {
         {'name': 'Faranah', 'count': 6800, 'color': const Color(0xFFEC4899)},
       ]);
     }
-    
+
     regions.sort((a, b) => (b['count'] as int).compareTo(a['count'] as int));
     final maxCount = regions.isEmpty ? 1 : (regions.first['count'] as int);
 
@@ -836,56 +842,57 @@ class _RegionalStatsCard extends StatelessWidget {
           ),
           const SizedBox(height: 20),
           ...regions.map((reg) => Padding(
-            padding: const EdgeInsets.only(bottom: 12),
-            child: Column(
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                padding: const EdgeInsets.only(bottom: 12),
+                child: Column(
                   children: [
                     Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Container(
-                          width: 8,
-                          height: 8,
-                          decoration: BoxDecoration(
-                            color: reg['color'] as Color,
-                            shape: BoxShape.circle,
-                          ),
+                        Row(
+                          children: [
+                            Container(
+                              width: 8,
+                              height: 8,
+                              decoration: BoxDecoration(
+                                color: reg['color'] as Color,
+                                shape: BoxShape.circle,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              reg['name'] as String,
+                              style: GoogleFonts.poppins(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w500,
+                                color: const Color(0xFF475569),
+                              ),
+                            ),
+                          ],
                         ),
-                        const SizedBox(width: 8),
                         Text(
-                          reg['name'] as String,
+                          '${reg['count']} actes',
                           style: GoogleFonts.poppins(
                             fontSize: 13,
-                            fontWeight: FontWeight.w500,
-                            color: const Color(0xFF475569),
+                            fontWeight: FontWeight.w600,
+                            color: const Color(0xFF0F172A),
                           ),
                         ),
                       ],
                     ),
-                    Text(
-                      '${reg['count']} actes',
-                      style: GoogleFonts.poppins(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                        color: const Color(0xFF0F172A),
+                    const SizedBox(height: 6),
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(4),
+                      child: LinearProgressIndicator(
+                        value: (reg['count'] as int) / maxCount,
+                        backgroundColor: const Color(0xFFF1F5F9),
+                        valueColor: AlwaysStoppedAnimation<Color>(
+                            reg['color'] as Color),
+                        minHeight: 4,
                       ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 6),
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(4),
-                  child: LinearProgressIndicator(
-                    value: (reg['count'] as int) / maxCount,
-                    backgroundColor: const Color(0xFFF1F5F9),
-                    valueColor: AlwaysStoppedAnimation<Color>(reg['color'] as Color),
-                    minHeight: 4,
-                  ),
-                ),
-              ],
-            ),
-          )),
+              )),
         ],
       ),
     );
@@ -899,7 +906,7 @@ class _SecurityStatusCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final alertCount = (stats?['alerts'] as List?)?.length ?? 0;
-    
+
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -938,9 +945,9 @@ class _SecurityStatusCard extends StatelessWidget {
                       ),
                     ),
                     Text(
-                      alertCount == 0 
-                        ? 'Tous les nœuds validateurs sont opérationnels'
-                        : '$alertCount alertes système détectées',
+                      alertCount == 0
+                          ? 'Tous les nœuds validateurs sont opérationnels'
+                          : '$alertCount alertes système détectées',
                       style: GoogleFonts.poppins(
                         fontSize: 12,
                         color: const Color(0xFF64748B),
@@ -1006,7 +1013,8 @@ class _SecurityIndicator extends StatelessWidget {
               style: GoogleFonts.poppins(
                 fontSize: 18,
                 fontWeight: FontWeight.w700,
-                color: isGood ? const Color(0xFF059669) : const Color(0xFFDC2626),
+                color:
+                    isGood ? const Color(0xFF059669) : const Color(0xFFDC2626),
               ),
             ),
             const SizedBox(height: 4),
@@ -1043,13 +1051,15 @@ class _NavItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final color = isActive ? const Color(0xFF10B981) : const Color(0xFF94A3B8);
-    
+
     return GestureDetector(
       onTap: onTap,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         decoration: BoxDecoration(
-          color: isActive ? const Color(0xFF10B981).withOpacity(0.1) : Colors.transparent,
+          color: isActive
+              ? const Color(0xFF10B981).withOpacity(0.1)
+              : Colors.transparent,
           borderRadius: BorderRadius.circular(12),
         ),
         child: Column(
@@ -1152,10 +1162,13 @@ class _RegionDetailsSheet extends StatelessWidget {
                 return ListTile(
                   leading: CircleAvatar(
                     backgroundColor: (reg['color'] as Color).withOpacity(0.2),
-                    child: Icon(Icons.location_on, color: reg['color'] as Color),
+                    child:
+                        Icon(Icons.location_on, color: reg['color'] as Color),
                   ),
-                  title: Text(reg['name'] as String, style: GoogleFonts.poppins(fontWeight: FontWeight.w500)),
-                  trailing: Text('${reg['count']} actes', style: GoogleFonts.poppins(fontWeight: FontWeight.w600)),
+                  title: Text(reg['name'] as String,
+                      style: GoogleFonts.poppins(fontWeight: FontWeight.w500)),
+                  trailing: Text('${reg['count']} actes',
+                      style: GoogleFonts.poppins(fontWeight: FontWeight.w600)),
                 );
               },
             ),
@@ -1182,9 +1195,12 @@ class _RequestsTab extends StatelessWidget {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.assignment_turned_in_outlined, size: 48, color: Colors.grey.withOpacity(0.4)),
+                  Icon(Icons.assignment_turned_in_outlined,
+                      size: 48, color: Colors.grey.withOpacity(0.4)),
                   const SizedBox(height: 12),
-                  Text('Aucune demande en attente', style: GoogleFonts.poppins(color: const Color(0xFF64748B))),
+                  Text('Aucune demande en attente',
+                      style:
+                          GoogleFonts.poppins(color: const Color(0xFF64748B))),
                 ],
               ),
             )
@@ -1195,20 +1211,28 @@ class _RequestsTab extends StatelessWidget {
                 final req = requests[index];
                 return Card(
                   margin: const EdgeInsets.only(bottom: 12),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12)),
                   elevation: 0,
                   color: Colors.white,
                   child: ListTile(
                     contentPadding: const EdgeInsets.all(16),
                     leading: CircleAvatar(
                       backgroundColor: const Color(0xFF10B981).withOpacity(0.1),
-                      child: const Icon(Icons.description, color: Color(0xFF10B981)),
+                      child: const Icon(Icons.description,
+                          color: Color(0xFF10B981)),
                     ),
-                    title: Text(req['childFirstName'] != null ? '${req['childFirstName']} ${req['childLastName']}' : 'Demande d\'acte', style: GoogleFonts.poppins(fontWeight: FontWeight.w600)),
+                    title: Text(
+                        req['childFirstName'] != null
+                            ? '${req['childFirstName']} ${req['childLastName']}'
+                            : 'Demande d\'acte',
+                        style:
+                            GoogleFonts.poppins(fontWeight: FontWeight.w600)),
                     subtitle: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('Demandeur: ${req['citizen']?['fullName'] ?? 'N/A'}'),
+                        Text(
+                            'Demandeur: ${req['citizen']?['fullName'] ?? 'N/A'}'),
                         Text('Tél: ${req['citizen']?['phoneNumber'] ?? 'N/A'}'),
                       ],
                     ),
@@ -1217,7 +1241,8 @@ class _RequestsTab extends StatelessWidget {
                       final result = await Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (_) => AgentRegisterWizardScreen(initialRequest: req),
+                          builder: (_) =>
+                              AgentRegisterWizardScreen(initialRequest: req),
                         ),
                       );
                       if (result == true) {

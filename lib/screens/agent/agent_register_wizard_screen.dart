@@ -14,19 +14,25 @@ class AgentRegisterWizardScreen extends StatefulWidget {
   const AgentRegisterWizardScreen({super.key, this.initialRequest});
 
   @override
-  State<AgentRegisterWizardScreen> createState() => _AgentRegisterWizardScreenState();
+  State<AgentRegisterWizardScreen> createState() =>
+      _AgentRegisterWizardScreenState();
 }
 
 class _AgentRegisterWizardScreenState extends State<AgentRegisterWizardScreen> {
   final _offlineService = OfflineService();
   final _apiService = ApiService();
-  
+
   int _currentStep = 0;
   bool _isLoading = false;
   bool _isOnline = true;
   String? _gpsCoordinates;
 
-  final List<String> _stepTitles = ['ENFANT', 'PARENTS', 'TÉMOINS', 'VALIDATION'];
+  final List<String> _stepTitles = [
+    'ENFANT',
+    'PARENTS',
+    'TÉMOINS',
+    'VALIDATION'
+  ];
   final List<String> _stepDescriptions = [
     'Saisissez les informations de\n\'enfant né.',
     'Informations des parents',
@@ -41,7 +47,7 @@ class _AgentRegisterWizardScreenState extends State<AgentRegisterWizardScreen> {
   final _dateNaissance = TextEditingController();
   final _heureNaissance = TextEditingController();
   final _lieuNaissance = TextEditingController();
-  
+
   final _nomMere = TextEditingController();
   final _dateMere = TextEditingController();
   final _prefectureMere = TextEditingController();
@@ -49,12 +55,12 @@ class _AgentRegisterWizardScreenState extends State<AgentRegisterWizardScreen> {
   final _nomPere = TextEditingController();
   final _datePere = TextEditingController();
   final _cniPere = TextEditingController();
-  
+
   final _temoin1Nom = TextEditingController();
   final _temoin1Cni = TextEditingController();
   final _temoin2Nom = TextEditingController();
   final _temoin2Cni = TextEditingController();
-  
+
   final _codeEtablissement = TextEditingController();
   final _telephoneParent = TextEditingController();
 
@@ -70,38 +76,41 @@ class _AgentRegisterWizardScreenState extends State<AgentRegisterWizardScreen> {
     super.initState();
     _checkConnectivity();
     _getCurrentLocation();
-    
+
     // Si une demande a été passée, on pré-remplit les champs
     if (widget.initialRequest != null) {
       final req = widget.initialRequest!;
       _prenom.text = req['childFirstName'] ?? '';
       _nom.text = req['childLastName'] ?? '';
       _sexe.text = req['childGender'] ?? 'M';
-      
+
       if (req['birthDate'] != null) {
-        _dateNaissance.text = DateFormat('yyyy-MM-dd').format(DateTime.parse(req['birthDate']));
+        _dateNaissance.text =
+            DateFormat('yyyy-MM-dd').format(DateTime.parse(req['birthDate']));
       }
       _heureNaissance.text = req['timeOfBirth'] ?? '';
       _lieuNaissance.text = req['placeOfBirth'] ?? '';
-      
+
       _nomMere.text = req['motherFullName'] ?? '';
       if (req['motherDob'] != null) {
-        _dateMere.text = DateFormat('yyyy-MM-dd').format(DateTime.parse(req['motherDob']));
+        _dateMere.text =
+            DateFormat('yyyy-MM-dd').format(DateTime.parse(req['motherDob']));
       }
       _prefectureMere.text = req['motherPrefecture'] ?? '';
       _cniMere.text = req['motherCni'] ?? '';
-      
+
       _nomPere.text = req['fatherFullName'] ?? '';
       if (req['fatherDob'] != null) {
-        _datePere.text = DateFormat('yyyy-MM-dd').format(DateTime.parse(req['fatherDob']));
+        _datePere.text =
+            DateFormat('yyyy-MM-dd').format(DateTime.parse(req['fatherDob']));
       }
       _cniPere.text = req['fatherCni'] ?? '';
-      
+
       _temoin1Nom.text = req['witness1FullName'] ?? '';
       _temoin1Cni.text = req['witness1Cni'] ?? '';
       _temoin2Nom.text = req['witness2FullName'] ?? '';
       _temoin2Cni.text = req['witness2Cni'] ?? '';
-      
+
       _telephoneParent.text = req['phoneNumber'] ?? '';
     }
   }
@@ -114,7 +123,8 @@ class _AgentRegisterWizardScreenState extends State<AgentRegisterWizardScreen> {
   Future<void> _getCurrentLocation() async {
     final position = await _offlineService.getCurrentPosition();
     if (position != null) {
-      setState(() => _gpsCoordinates = '${position.latitude},${position.longitude}');
+      setState(
+          () => _gpsCoordinates = '${position.latitude},${position.longitude}');
     }
   }
 
@@ -143,7 +153,8 @@ class _AgentRegisterWizardScreenState extends State<AgentRegisterWizardScreen> {
         'childLastName': _nom.text,
         'childGender': _sexe.text,
         'dateOfBirth': _dateNaissance.text,
-        'timeOfBirth': _heureNaissance.text.isEmpty ? null : _heureNaissance.text,
+        'timeOfBirth':
+            _heureNaissance.text.isEmpty ? null : _heureNaissance.text,
         'placeOfBirth': _lieuNaissance.text,
         'motherFullName': _nomMere.text,
         'motherDob': _dateMere.text,
@@ -158,19 +169,21 @@ class _AgentRegisterWizardScreenState extends State<AgentRegisterWizardScreen> {
         'witness2Cni': _temoin2Cni.text.isEmpty ? null : _temoin2Cni.text,
         'establishmentCode': _codeEtablissement.text,
         'gpsCoordinates': _gpsCoordinates,
-        'parentPhoneNumber': _telephoneParent.text.isEmpty ? null : _telephoneParent.text,
+        'parentPhoneNumber':
+            _telephoneParent.text.isEmpty ? null : _telephoneParent.text,
         'isLateRegistration': false,
       };
 
       if (widget.initialRequest != null) {
         // Appeler le endpoint de validation de demande
-        final res = await _apiService.post('/requests/${widget.initialRequest!['id']}/validate', birthData);
+        final res = await _apiService.post(
+            '/requests/${widget.initialRequest!['id']}/validate', birthData);
         setState(() => _isLoading = false);
-        
-        if (mounted && res != null && res['status'] == 'success') {
+
+        if (mounted && res != null && res['success'] == true) {
           // Extraire le birth ID et le national ID pour la suite si nécessaire
           final nationalId = res['data']?['birth']?['nationalId'] ?? 'N/A';
-          
+
           Navigator.pushReplacement(
             context,
             MaterialPageRoute(
@@ -178,7 +191,8 @@ class _AgentRegisterWizardScreenState extends State<AgentRegisterWizardScreen> {
                 babyName: "${_prenom.text} ${_nom.text}",
                 birthDate: _dateNaissance.text,
                 birthPlace: _lieuNaissance.text,
-                fatherName: _nomPere.text.isEmpty ? "Non renseigné" : _nomPere.text,
+                fatherName:
+                    _nomPere.text.isEmpty ? "Non renseigné" : _nomPere.text,
                 motherName: _nomMere.text,
                 blockchainId: QRService.generateBlockchainId(),
                 nationalId: nationalId,
@@ -203,9 +217,11 @@ class _AgentRegisterWizardScreenState extends State<AgentRegisterWizardScreen> {
                   babyName: "${_prenom.text} ${_nom.text}",
                   birthDate: _dateNaissance.text,
                   birthPlace: _lieuNaissance.text,
-                  fatherName: _nomPere.text.isEmpty ? "Non renseigné" : _nomPere.text,
+                  fatherName:
+                      _nomPere.text.isEmpty ? "Non renseigné" : _nomPere.text,
                   motherName: _nomMere.text,
-                  blockchainId: data['blockchainHash'] ?? QRService.generateBlockchainId(),
+                  blockchainId: data['blockchainHash'] ??
+                      QRService.generateBlockchainId(),
                   nationalId: data['nationalId'],
                   isOffline: false,
                 ),
@@ -228,16 +244,20 @@ class _AgentRegisterWizardScreenState extends State<AgentRegisterWizardScreen> {
             motherPrefecture: _prefectureMere.text,
             establishmentCode: _codeEtablissement.text,
             agentId: agent?.id ?? 'unknown',
-            timeOfBirth: _heureNaissance.text.isEmpty ? null : _heureNaissance.text,
+            timeOfBirth:
+                _heureNaissance.text.isEmpty ? null : _heureNaissance.text,
             motherCni: _cniMere.text.isEmpty ? null : _cniMere.text,
             fatherFullName: _nomPere.text.isEmpty ? null : _nomPere.text,
             fatherDob: _datePere.text.isEmpty ? null : _datePere.text,
             fatherCni: _cniPere.text.isEmpty ? null : _cniPere.text,
             gpsCoordinates: _gpsCoordinates,
-            parentPhoneNumber: _telephoneParent.text.isEmpty ? null : _telephoneParent.text,
-            witness1FullName: _temoin1Nom.text.isEmpty ? null : _temoin1Nom.text,
+            parentPhoneNumber:
+                _telephoneParent.text.isEmpty ? null : _telephoneParent.text,
+            witness1FullName:
+                _temoin1Nom.text.isEmpty ? null : _temoin1Nom.text,
             witness1Cni: _temoin1Cni.text.isEmpty ? null : _temoin1Cni.text,
-            witness2FullName: _temoin2Nom.text.isEmpty ? null : _temoin2Nom.text,
+            witness2FullName:
+                _temoin2Nom.text.isEmpty ? null : _temoin2Nom.text,
             witness2Cni: _temoin2Cni.text.isEmpty ? null : _temoin2Cni.text,
           );
           setState(() => _isLoading = false);
@@ -249,7 +269,8 @@ class _AgentRegisterWizardScreenState extends State<AgentRegisterWizardScreen> {
                   babyName: "${_prenom.text} ${_nom.text}",
                   birthDate: _dateNaissance.text,
                   birthPlace: _lieuNaissance.text,
-                  fatherName: _nomPere.text.isEmpty ? "Non renseigné" : _nomPere.text,
+                  fatherName:
+                      _nomPere.text.isEmpty ? "Non renseigné" : _nomPere.text,
                   motherName: _nomMere.text,
                   blockchainId: QRService.generateBlockchainId(),
                   nationalId: null,
@@ -309,7 +330,8 @@ class _AgentRegisterWizardScreenState extends State<AgentRegisterWizardScreen> {
                                       color: isActive
                                           ? const Color(0xFF059669)
                                           : isCompleted
-                                              ? const Color(0xFF059669).withOpacity(0.2)
+                                              ? const Color(0xFF059669)
+                                                  .withOpacity(0.2)
                                               : Colors.grey[200],
                                       shape: BoxShape.circle,
                                       border: Border.all(
@@ -321,11 +343,15 @@ class _AgentRegisterWizardScreenState extends State<AgentRegisterWizardScreen> {
                                     ),
                                     child: Center(
                                       child: isCompleted
-                                          ? const Icon(Icons.check, color: Color(0xFF059669), size: 20)
+                                          ? const Icon(Icons.check,
+                                              color: Color(0xFF059669),
+                                              size: 20)
                                           : Text(
                                               '${index + 1}',
                                               style: GoogleFonts.poppins(
-                                                color: isActive ? Colors.white : Colors.grey[600],
+                                                color: isActive
+                                                    ? Colors.white
+                                                    : Colors.grey[600],
                                                 fontWeight: FontWeight.bold,
                                               ),
                                             ),
@@ -336,8 +362,12 @@ class _AgentRegisterWizardScreenState extends State<AgentRegisterWizardScreen> {
                                     _stepTitles[index],
                                     style: GoogleFonts.poppins(
                                       fontSize: 12,
-                                      fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
-                                      color: isActive ? const Color(0xFF059669) : Colors.grey[500],
+                                      fontWeight: isActive
+                                          ? FontWeight.bold
+                                          : FontWeight.normal,
+                                      color: isActive
+                                          ? const Color(0xFF059669)
+                                          : Colors.grey[500],
                                     ),
                                   ),
                                 ],
@@ -420,7 +450,8 @@ class _AgentRegisterWizardScreenState extends State<AgentRegisterWizardScreen> {
                   children: [
                     // Indicateur connexion
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 8),
                       decoration: BoxDecoration(
                         color: _isOnline
                             ? const Color(0xFF059669).withOpacity(0.1)
@@ -434,17 +465,23 @@ class _AgentRegisterWizardScreenState extends State<AgentRegisterWizardScreen> {
                             width: 8,
                             height: 8,
                             decoration: BoxDecoration(
-                              color: _isOnline ? const Color(0xFF059669) : Colors.orange,
+                              color: _isOnline
+                                  ? const Color(0xFF059669)
+                                  : Colors.orange,
                               shape: BoxShape.circle,
                             ),
                           ),
                           const SizedBox(width: 8),
                           Text(
-                            _isOnline ? 'CONNEXION LEDGER ACTIVE' : 'MODE HORS-LIGNE',
+                            _isOnline
+                                ? 'CONNEXION LEDGER ACTIVE'
+                                : 'MODE HORS-LIGNE',
                             style: GoogleFonts.poppins(
                               fontSize: 11,
                               fontWeight: FontWeight.w600,
-                              color: _isOnline ? const Color(0xFF059669) : Colors.orange,
+                              color: _isOnline
+                                  ? const Color(0xFF059669)
+                                  : Colors.orange,
                               letterSpacing: 0.5,
                             ),
                           ),
@@ -463,8 +500,10 @@ class _AgentRegisterWizardScreenState extends State<AgentRegisterWizardScreen> {
                               icon: const Icon(Icons.arrow_back),
                               label: const Text('Retour'),
                               style: OutlinedButton.styleFrom(
-                                padding: const EdgeInsets.symmetric(vertical: 16),
-                                side: const BorderSide(color: Color(0xFF059669)),
+                                padding:
+                                    const EdgeInsets.symmetric(vertical: 16),
+                                side:
+                                    const BorderSide(color: Color(0xFF059669)),
                                 foregroundColor: const Color(0xFF059669),
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(12),
@@ -481,14 +520,18 @@ class _AgentRegisterWizardScreenState extends State<AgentRegisterWizardScreen> {
                                 ? const SizedBox(
                                     width: 20,
                                     height: 20,
-                                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                                    child: CircularProgressIndicator(
+                                        strokeWidth: 2, color: Colors.white),
                                   )
-                                : Icon(_currentStep == 3 ? Icons.check : Icons.arrow_forward),
+                                : Icon(_currentStep == 3
+                                    ? Icons.check
+                                    : Icons.arrow_forward),
                             label: Text(
                               _currentStep == 3
                                   ? 'Valider l\'enregistrement'
                                   : 'Suivant',
-                              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                              style: const TextStyle(
+                                  fontSize: 16, fontWeight: FontWeight.w600),
                             ),
                             style: ElevatedButton.styleFrom(
                               backgroundColor: const Color(0xFF059669),
@@ -548,7 +591,7 @@ class _AgentRegisterWizardScreenState extends State<AgentRegisterWizardScreen> {
             validator: true,
           ),
           const SizedBox(height: 20),
-          
+
           // Sexe
           Text(
             'SEXE',
@@ -612,7 +655,9 @@ class _AgentRegisterWizardScreenState extends State<AgentRegisterWizardScreen> {
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 20),
         decoration: BoxDecoration(
-          color: isSelected ? const Color(0xFF059669).withOpacity(0.1) : Colors.white,
+          color: isSelected
+              ? const Color(0xFF059669).withOpacity(0.1)
+              : Colors.white,
           border: Border.all(
             color: isSelected ? const Color(0xFF059669) : Colors.grey[300]!,
             width: isSelected ? 2 : 1,
@@ -765,7 +810,6 @@ class _AgentRegisterWizardScreenState extends State<AgentRegisterWizardScreen> {
             icon: Icons.credit_card_outlined,
           ),
           const SizedBox(height: 24),
-
           Text(
             'TÉMOIN 2',
             style: GoogleFonts.poppins(
@@ -787,7 +831,6 @@ class _AgentRegisterWizardScreenState extends State<AgentRegisterWizardScreen> {
             icon: Icons.credit_card_outlined,
           ),
           const SizedBox(height: 24),
-
           _buildTextField(
             controller: _codeEtablissement,
             label: 'Code établissement *',
@@ -811,7 +854,8 @@ class _AgentRegisterWizardScreenState extends State<AgentRegisterWizardScreen> {
             decoration: BoxDecoration(
               color: const Color(0xFF059669).withOpacity(0.1),
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: const Color(0xFF059669).withOpacity(0.3)),
+              border:
+                  Border.all(color: const Color(0xFF059669).withOpacity(0.3)),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -831,7 +875,8 @@ class _AgentRegisterWizardScreenState extends State<AgentRegisterWizardScreen> {
                 ),
                 const SizedBox(height: 16),
                 _buildSummaryItem('Enfant', '${_prenom.text} ${_nom.text}'),
-                _buildSummaryItem('Sexe', _sexe.text == 'M' ? 'Masculin' : 'Féminin'),
+                _buildSummaryItem(
+                    'Sexe', _sexe.text == 'M' ? 'Masculin' : 'Féminin'),
                 _buildSummaryItem('Date de naissance', _dateNaissance.text),
                 _buildSummaryItem('Lieu', _lieuNaissance.text),
                 _buildSummaryItem('Mère', _nomMere.text),
@@ -918,7 +963,8 @@ class _AgentRegisterWizardScreenState extends State<AgentRegisterWizardScreen> {
         ),
         filled: true,
         fillColor: Colors.white,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        contentPadding:
+            const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
       ),
       validator: validator
           ? (value) => value!.isEmpty ? "Ce champ est obligatoire" : null
@@ -938,7 +984,8 @@ class _AgentRegisterWizardScreenState extends State<AgentRegisterWizardScreen> {
         labelText: label,
         hintText: 'mm/dd/yyyy',
         prefixIcon: Icon(icon, color: Colors.grey[400]),
-        suffixIcon: Icon(Icons.calendar_today, color: Colors.grey[400], size: 18),
+        suffixIcon:
+            Icon(Icons.calendar_today, color: Colors.grey[400], size: 18),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
           borderSide: BorderSide(color: Colors.grey[300]!),
@@ -953,7 +1000,8 @@ class _AgentRegisterWizardScreenState extends State<AgentRegisterWizardScreen> {
         ),
         filled: true,
         fillColor: Colors.white,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        contentPadding:
+            const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
       ),
       onTap: () async {
         final date = await showDatePicker(

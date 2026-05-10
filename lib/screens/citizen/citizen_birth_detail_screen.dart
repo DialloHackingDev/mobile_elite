@@ -3,6 +3,9 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:share_plus/share_plus.dart';
+import 'dart:io';
+import 'package:path_provider/path_provider.dart';
+import 'package:path/path.dart' as p;
 import '../../services/api_service.dart';
 
 class CitizenBirthDetailScreen extends StatefulWidget {
@@ -18,35 +21,52 @@ class _CitizenBirthDetailScreenState extends State<CitizenBirthDetailScreen> {
   bool _isDownloading = false;
 
   Future<void> _downloadCertificate() async {
-    setState(() => _isDownloading = true);
-    
-    try {
-      final api = ApiService();
-      final result = await api.get('/citizens/certificate/${widget.birthData['id']}');
-      
-      if (result['success']) {
-        // Dans une vraie app, on téléchargerait le PDF
-        // Pour l'instant on simule avec un partage
-        await Share.share(
-          'Acte de naissance de ${widget.birthData['childFirstName']} ${widget.birthData['childLastName']}\n'
-          'ID: ${widget.birthData['nationalId']}\n'
-          'Blockchain: ${widget.birthData['blockchainHash']?.substring(0, 20)}...',
-          subject: 'Acte de Naissance - ${widget.birthData['childFirstName']}',
-        );
-        
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Certificat téléchargé avec succès'),
-            backgroundColor: Color(0xFF059669),
-          ),
-        );
-      }
-    } catch (e) {
+    // Vérifier que l'acte est bien certifié avant téléchargement
+    if (widget.birthData['blockchainHash'] == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Erreur: $e'),
+        const SnackBar(
+          content: Text("Cet acte n'est pas encore certifié sur la blockchain"),
           backgroundColor: Colors.red,
         ),
+      );
+      return;
+    }
+
+    setState(() => _isDownloading = true);
+    try {
+      final api = ApiService();
+      final birthId = widget.birthData['nationalId'] ?? widget.birthData['id']?.toString() ?? '';
+      if (birthId.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('ID de l\'acte introuvable'), backgroundColor: Colors.red),
+        );
+        return;
+      }
+
+      final bytes = await api.downloadCertificateBytes(birthId);
+      if (bytes == null || bytes.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Impossible de télécharger l\'extrait'), backgroundColor: Colors.red),
+        );
+        return;
+      }
+
+      final tempDir = await getTemporaryDirectory();
+      final safeName = (widget.birthData['childFirstName'] ?? 'acte').toString().replaceAll(' ', '_');
+      final fileName = '${safeName}_${birthId.replaceAll('/', '_')}.pdf';
+      final filePath = p.join(tempDir.path, fileName);
+      final file = File(filePath);
+      await file.writeAsBytes(bytes, flush: true);
+
+      // Partager / ouvrir le fichier PDF
+      await Share.shareXFiles([XFile(filePath)], text: 'Acte de naissance - ${widget.birthData['childFirstName']}');
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Certificat téléchargé avec succès'), backgroundColor: Color(0xFF059669)),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Erreur: $e'), backgroundColor: Colors.red),
       );
     } finally {
       setState(() => _isDownloading = false);
@@ -159,25 +179,44 @@ class _CitizenBirthDetailScreenState extends State<CitizenBirthDetailScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Badge Certifié
+                      // Badge Certifié (ou en attente)
                       Row(
                         children: [
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFD1FAE5),
-                              borderRadius: BorderRadius.circular(20),
-                            ),
-                            child: Text(
-                              'CERTIFIÉ BLOCKCHAIN',
-                              style: GoogleFonts.poppins(
-                                fontSize: 10,
-                                fontWeight: FontWeight.w700,
-                                color: const Color(0xFF059669),
-                                letterSpacing: 0.5,
+                          if (widget.birthData['blockchainHash'] != null) ...[
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFD1FAE5),
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              child: Text(
+                                'CERTIFIÉ BLOCKCHAIN',
+                                style: GoogleFonts.poppins(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w700,
+                                  color: const Color(0xFF059669),
+                                  letterSpacing: 0.5,
+                                ),
                               ),
                             ),
-                          ),
+                          ] else ...[
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFFEF3C7),
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              child: Text(
+                                'EN ATTENTE',
+                                style: GoogleFonts.poppins(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w700,
+                                  color: const Color(0xFFF59E0B),
+                                  letterSpacing: 0.5,
+                                ),
+                              ),
+                            ),
+                          ],
                           const Spacer(),
                           Container(
                             width: 80,
@@ -352,7 +391,7 @@ class _CitizenBirthDetailScreenState extends State<CitizenBirthDetailScreen> {
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20),
                 child: ElevatedButton(
-                  onPressed: _isDownloading ? null : _downloadCertificate,
+                  onPressed: (_isDownloading || widget.birthData['blockchainHash'] == null) ? null : _downloadCertificate,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF059669),
                     foregroundColor: Colors.white,

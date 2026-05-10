@@ -99,6 +99,7 @@ class _AdminDashboardScreenV2State extends State<AdminDashboardScreenV2> {
     ];
 
     return Scaffold(
+      resizeToAvoidBottomInset: true,
       backgroundColor: Colors.white,
       appBar: AppBar(
         backgroundColor: const Color(0xFF10B981),

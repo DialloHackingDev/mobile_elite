@@ -11,7 +11,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 // Surcharger via : flutter run --dart-define=API_BASE_URL=http://X.X.X.X:3000/api
 const String _kBaseUrl = String.fromEnvironment(
   'API_BASE_URL',
-  defaultValue: 'http://192.168.1.107:3000/api',  // IP locale pour appareil physique
+  defaultValue:
+      'http://192.168.1.107:3000/api', // IP locale pour appareil physique
 );
 
 class ApiService {
@@ -21,9 +22,9 @@ class ApiService {
   ApiService._internal();
 
   // ── Clés SharedPreferences ─────────────────────────────────────────────────
-  static const _kToken        = 'auth_token';
+  static const _kToken = 'auth_token';
   static const _kRefreshToken = 'refresh_token';
-  static const _kUser         = 'user_data';
+  static const _kUser = 'user_data';
 
   // ── État interne ───────────────────────────────────────────────────────────
   String? _token;
@@ -31,16 +32,16 @@ class ApiService {
   Map<String, dynamic>? _user;
 
   String get baseUrl => _kBaseUrl;
-  bool   get isAuthenticated => _token != null;
+  bool get isAuthenticated => _token != null;
   String? get token => _token;
   Map<String, dynamic>? get userData => _user;
 
   // ── Initialisation ─────────────────────────────────────────────────────────
   Future<void> initialize() async {
     final prefs = await SharedPreferences.getInstance();
-    _token        = prefs.getString(_kToken);
+    _token = prefs.getString(_kToken);
     _refreshToken = prefs.getString(_kRefreshToken);
-    final raw     = prefs.getString(_kUser);
+    final raw = prefs.getString(_kUser);
     if (raw != null) _user = jsonDecode(raw) as Map<String, dynamic>;
   }
 
@@ -51,12 +52,12 @@ class ApiService {
     Map<String, dynamic> user,
   ) async {
     final prefs = await SharedPreferences.getInstance();
-    _token        = accessToken;
+    _token = accessToken;
     _refreshToken = refreshToken;
-    _user         = user;
-    await prefs.setString(_kToken,        accessToken);
+    _user = user;
+    await prefs.setString(_kToken, accessToken);
     await prefs.setString(_kRefreshToken, refreshToken);
-    await prefs.setString(_kUser,         jsonEncode(user));
+    await prefs.setString(_kUser, jsonEncode(user));
   }
 
   Future<void> clearSession() async {
@@ -75,15 +76,15 @@ class ApiService {
 
   // ── HTTP helpers ───────────────────────────────────────────────────────────
   Map<String, String> _headers({bool auth = true}) => {
-    'Content-Type': 'application/json',
-    'Accept':       'application/json',
-    if (auth && _token != null) 'Authorization': 'Bearer $_token',
-  };
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        if (auth && _token != null) 'Authorization': 'Bearer $_token',
+      };
 
   /// Transforme la réponse HTTP en Map standard {success, data, error, statusCode}
   Map<String, dynamic> _parse(http.Response res) {
     try {
-      final body    = jsonDecode(res.body) as Map<String, dynamic>;
+      final body = jsonDecode(res.body) as Map<String, dynamic>;
       final success = res.statusCode >= 200 && res.statusCode < 300;
 
       // Token expiré ou invalide → on vide la session pour forcer la reconnexion
@@ -91,34 +92,47 @@ class ApiService {
         // Si on n'a pas de token, c'est une erreur d'authentification directe (ex: mauvais mot de passe au login)
         // Si on a un token, c'est que la session stockée n'est plus valide.
         final bool isSessionExpiration = _token != null;
-        final backendMessage = body['message'] as String? ?? (isSessionExpiration ? 'Session expirée' : 'Identifiants invalides');
-        
+        final backendMessage = body['message'] as String? ??
+            (isSessionExpiration
+                ? 'Session expirée'
+                : 'Identifiants invalides');
+
         if (isSessionExpiration) {
           clearSession();
         }
 
         return {
           'success': false,
-          'error': isSessionExpiration ? 'SESSION_EXPIRED' : 'INVALID_CREDENTIALS',
+          'error':
+              isSessionExpiration ? 'SESSION_EXPIRED' : 'INVALID_CREDENTIALS',
           'message': backendMessage,
           'statusCode': 401,
         };
       }
 
       return {
-        'success':    success,
-        'data':       body['data'],
-        'message':    body['message'],
-        'error':      success ? null : (body['message'] ?? 'Erreur inconnue'),
+        'success': success,
+        'status': body['status'],
+        'data': body['data'],
+        'message': body['message'],
+        'error': success ? null : (body['message'] ?? 'Erreur inconnue'),
         'statusCode': res.statusCode,
       };
     } catch (_) {
       // Token expiré avec réponse non-JSON
       if (res.statusCode == 401) {
         if (_token != null) clearSession();
-        return {'success': false, 'error': 'SESSION_EXPIRED', 'statusCode': 401};
+        return {
+          'success': false,
+          'error': 'SESSION_EXPIRED',
+          'statusCode': 401
+        };
       }
-      return {'success': false, 'error': 'Réponse invalide', 'statusCode': res.statusCode};
+      return {
+        'success': false,
+        'error': 'Réponse invalide',
+        'statusCode': res.statusCode
+      };
     }
   }
 
@@ -128,7 +142,7 @@ class ApiService {
           .get(Uri.parse('$baseUrl$path'), headers: _headers(auth: auth))
           .timeout(const Duration(seconds: 15));
       final parsed = _parse(res);
-      
+
       if (parsed['success'] == true || parsed['statusCode'] == 200) {
         final prefs = await SharedPreferences.getInstance();
         await prefs.setString('cache_$path', jsonEncode(parsed));
@@ -152,17 +166,17 @@ class ApiService {
   Future<Map<String, dynamic>> getFast(String path, {bool auth = true}) async {
     final prefs = await SharedPreferences.getInstance();
     final cachedStr = prefs.getString('cache_$path');
-    
+
     final networkFuture = http
         .get(Uri.parse('$baseUrl$path'), headers: _headers(auth: auth))
         .timeout(const Duration(seconds: 15))
         .then((res) async {
-          final parsed = _parse(res);
-          if (parsed['success'] == true || parsed['statusCode'] == 200) {
-            await prefs.setString('cache_$path', jsonEncode(parsed));
-          }
-          return parsed;
-        }).catchError((_) => <String, dynamic>{'success': false});
+      final parsed = _parse(res);
+      if (parsed['success'] == true || parsed['statusCode'] == 200) {
+        await prefs.setString('cache_$path', jsonEncode(parsed));
+      }
+      return parsed;
+    }).catchError((_) => <String, dynamic>{'success': false});
 
     if (cachedStr != null) {
       try {
@@ -187,7 +201,10 @@ class ApiService {
           .timeout(const Duration(seconds: 15));
       return _parse(res);
     } catch (e) {
-      return {'success': false, 'error': 'Erreur réseau: Impossible de joindre le serveur'};
+      return {
+        'success': false,
+        'error': 'Erreur réseau: Impossible de joindre le serveur'
+      };
     }
   }
 
@@ -237,7 +254,9 @@ class ApiService {
   }
 
   Future<void> logout() async {
-    try { await post('/auth/logout', {}); } catch (_) {}
+    try {
+      await post('/auth/logout', {});
+    } catch (_) {}
     await clearSession();
   }
 
@@ -278,8 +297,7 @@ class ApiService {
   // ══════════════════════════════════════════════════════════════════════════
 
   /// Enregistre un acte (en ligne)
-  Future<Map<String, dynamic>> registerBirth(
-          Map<String, dynamic> data) =>
+  Future<Map<String, dynamic>> registerBirth(Map<String, dynamic> data) =>
       post('/births', data);
 
   /// Liste paginée des actes de l'agent connecté
@@ -291,16 +309,14 @@ class ApiService {
       get('/births/$nationalId', auth: false);
 
   /// Synchronise un lot d'actes hors-ligne
-  Future<Map<String, dynamic>> syncBirths(
-          List<Map<String, dynamic>> births) =>
+  Future<Map<String, dynamic>> syncBirths(List<Map<String, dynamic>> births) =>
       post('/births/sync', {'births': births});
 
   /// Actes en attente de validation (admin)
   Future<Map<String, dynamic>> getPendingBirths() => get('/births/pending');
 
   /// Valide ou rejette un acte tardif (admin)
-  Future<Map<String, dynamic>> validateBirth(
-          String id, String decision) =>
+  Future<Map<String, dynamic>> validateBirth(String id, String decision) =>
       patch('/births/$id/validate', {'decision': decision});
 
   // ══════════════════════════════════════════════════════════════════════════
@@ -309,23 +325,33 @@ class ApiService {
 
   Future<Map<String, dynamic>> getMyChildren() => get('/citizen/my-children');
 
-  /// Cherche un acte par nationalId (ex: GN-2026-MAL-8888333)
-  Future<Map<String, dynamic>> getBirthByNationalId(String nationalId) =>
-      get('/citizen/birth/$nationalId');
+  /// Cherche un acte côté citoyen par nationalId (ex: GN-2026-MAL-8888333)
+  Future<Map<String, dynamic>> getCitizenBirthByNationalId(String nationalId) =>
+      get('/citizen/birth/$nationalId', auth: false);
 
   /// Télécharge le PDF d'un acte — accepte un UUID ou un nationalId
   Future<List<int>?> downloadCertificateBytes(String birthId) async {
     try {
       final token = await _getToken();
       final res = await http
-          .get(Uri.parse('$baseUrl/citizen/certificate/$birthId'),
-              headers: {
-                'Content-Type': 'application/json',
-                if (token != null) 'Authorization': 'Bearer $token',
-              })
-          .timeout(const Duration(seconds: 30));
+          .get(Uri.parse('$baseUrl/citizen/certificate/$birthId'), headers: {
+        'Content-Type': 'application/json',
+        if (token != null) 'Authorization': 'Bearer $token',
+      }).timeout(const Duration(seconds: 30));
       if (res.statusCode == 200) return res.bodyBytes.toList();
       return null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  // Récupère le token depuis la session ou les SharedPreferences
+  Future<String?> _getToken() async {
+    if (_token != null) return _token;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      _token = prefs.getString(_kToken);
+      return _token;
     } catch (_) {
       return null;
     }
@@ -335,8 +361,7 @@ class ApiService {
   // DASHBOARD
   // ══════════════════════════════════════════════════════════════════════════
 
-  Future<Map<String, dynamic>> getDashboardStats() =>
-      get('/dashboard/stats');
+  Future<Map<String, dynamic>> getDashboardStats() => get('/dashboard/stats');
 
   // ══════════════════════════════════════════════════════════════════════════
   // VÉRIFICATION (public)
@@ -350,19 +375,16 @@ class ApiService {
 
   Future<Map<String, dynamic>> verifyByQR(String qrPayload,
           {String verifierType = 'PUBLIC'}) =>
-      post('/verify/qr',
-          {'qrPayload': qrPayload, 'verifierType': verifierType},
+      post('/verify/qr', {'qrPayload': qrPayload, 'verifierType': verifierType},
           auth: false);
 
   // ══════════════════════════════════════════════════════════════════════════
   // DEMANDES CITOYEN
   // ══════════════════════════════════════════════════════════════════════════
 
-  Future<Map<String, dynamic>> getMyRequests() =>
-      get('/requests/my-requests');
+  Future<Map<String, dynamic>> getMyRequests() => get('/requests/my-requests');
 
-  Future<Map<String, dynamic>> createRequest(
-          Map<String, dynamic> body) =>
+  Future<Map<String, dynamic>> createRequest(Map<String, dynamic> body) =>
       post('/requests', body);
 
   Future<Map<String, dynamic>> cancelRequest(String id) =>
@@ -372,19 +394,17 @@ class ApiService {
   // NOTIFICATIONS & PARTAGE
   // ══════════════════════════════════════════════════════════════════════════
 
-  Future<Map<String, dynamic>> getNotifications() =>
-      get('/notifications');
+  Future<Map<String, dynamic>> getNotifications() => get('/notifications');
 
   Future<Map<String, dynamic>> markNotificationAsRead(String id) =>
       patch('/notifications/$id/read', {});
 
-  Future<Map<String, dynamic>> listCitizens() =>
-      get('/notifications/citizens');
+  Future<Map<String, dynamic>> listCitizens() => get('/notifications/citizens');
 
-  Future<Map<String, dynamic>> listAgents() =>
-      get('/notifications/agents');
+  Future<Map<String, dynamic>> listAgents() => get('/notifications/agents');
 
-  Future<Map<String, dynamic>> sendNotificationToCitizen(Map<String, dynamic> body) =>
+  Future<Map<String, dynamic>> sendNotificationToCitizen(
+          Map<String, dynamic> body) =>
       post('/notifications/send', body);
 
   // ══════════════════════════════════════════════════════════════════════════

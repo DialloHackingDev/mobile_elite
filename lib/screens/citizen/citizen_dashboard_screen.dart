@@ -67,8 +67,13 @@ class _CitizenDashboardScreenState extends State<CitizenDashboardScreen> {
 
   Future<void> _logout() async {
     await AuthService.logout();
-    _idController.dispose();
     _redirectToLogin();
+  }
+
+  @override
+  void dispose() {
+    _idController.dispose();
+    super.dispose();
   }
 
   Future<void> _fetchByBlockchainId() async {
@@ -79,18 +84,31 @@ class _CitizenDashboardScreenState extends State<CitizenDashboardScreen> {
       );
       return;
     }
-
     setState(() => _loading = true);
     try {
       final api = ApiService();
-      // On utilise verifyById pour récupérer les infos complètes
+
+      // Essayer un téléchargement direct (id peut être uuid ou nationalId)
+      final bytes = await api.downloadCertificateBytes(id);
+      if (bytes != null && bytes.isNotEmpty) {
+        // On a un PDF — pour l'instant on affiche une notification et renvoie.
+        // Le partage / sauvegarde concret est géré dans l'écran détail.
+        if (!mounted) return;
+        setState(() => _loading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Extrait téléchargé (ou partagé)'), backgroundColor: Color(0xFF059669)),
+        );
+        return;
+      }
+
+      // Sinon on tente la vérification publique pour afficher le détail
       final res = await api.verifyById(id);
 
       if (!mounted) return;
       setState(() => _loading = false);
 
       if (res['success'] == true && res['data'] != null) {
-        final birthData = res['data']; // Le backend retourne directement les infos de l'acte
+        final birthData = res['data'];
         if (birthData != null && birthData['childFirstName'] != null) {
           Navigator.push(
             context,
