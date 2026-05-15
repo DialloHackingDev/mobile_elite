@@ -3,6 +3,7 @@ import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'api_service.dart';
 
 /// Service de gestion du mode hors-ligne avec SQLite
@@ -30,6 +31,11 @@ class OfflineService {
 
   /// Initialiser la base de données SQLite
   Future<void> initialize() async {
+    if (kIsWeb) {
+      print('🌐 Mode Web détecté : SQLite désactivé');
+      return;
+    }
+
     final databasesPath = await getDatabasesPath();
     final path = join(databasesPath, _databaseName);
 
@@ -156,6 +162,7 @@ class OfflineService {
     String? witness2FullName,
     String? witness2Cni,
   }) async {
+    if (_database == null) return 'WEB-MODE-NO-SAVE';
     final db = _database!;
     final now = DateTime.now().toIso8601String();
     final localId = 'LOCAL-${DateTime.now().millisecondsSinceEpoch}';
@@ -205,6 +212,7 @@ class OfflineService {
 
   /// Récupérer toutes les naissances hors-ligne
   Future<List<Map<String, dynamic>>> getOfflineBirths() async {
+    if (_database == null) return [];
     final db = _database!;
 
     final results = await db.query(
@@ -217,6 +225,7 @@ class OfflineService {
 
   /// Récupérer une naissance par ID local
   Future<Map<String, dynamic>?> getOfflineBirthById(String localId) async {
+    if (_database == null) return null;
     final db = _database!;
 
     final results = await db.query(
@@ -232,6 +241,7 @@ class OfflineService {
 
   /// Mettre à jour une naissance
   Future<void> updateOfflineBirth(String localId, Map<String, dynamic> updates) async {
+    if (_database == null) return;
     final db = _database!;
     final now = DateTime.now().toIso8601String();
 
@@ -247,6 +257,7 @@ class OfflineService {
 
   /// Supprimer une naissance
   Future<void> deleteOfflineBirth(String localId) async {
+    if (_database == null) return;
     final db = _database!;
 
     await db.delete(
@@ -387,6 +398,7 @@ class OfflineService {
 
   /// Obtenir les statistiques de synchronisation
   Future<Map<String, dynamic>> getSyncStats() async {
+    if (_database == null) return {'total': 0, 'pending': 0, 'synced': 0, 'failed': 0};
     final db = _database!;
 
     final totalResult = await db.rawQuery('SELECT COUNT(*) as count FROM $_birthsTable');
@@ -447,6 +459,7 @@ class OfflineService {
 
   /// Sauvegarder un paramètre
   Future<void> setSetting(String key, String value) async {
+    if (_database == null) return;
     final db = _database!;
     final now = DateTime.now().toIso8601String();
 
@@ -463,6 +476,7 @@ class OfflineService {
 
   /// Récupérer un paramètre
   Future<String?> getSetting(String key) async {
+    if (_database == null) return null;
     final db = _database!;
 
     final results = await db.query(
@@ -480,6 +494,7 @@ class OfflineService {
 
   /// Récupérer le nombre de naissances en attente de synchronisation
   Future<int> getPendingSyncCount() async {
+    if (_database == null) return 0;
     final db = _database!;
     final result = await db.rawQuery(
       'SELECT COUNT(*) as count FROM $_birthsTable WHERE sync_status = ?',
@@ -490,6 +505,7 @@ class OfflineService {
 
   /// Marquer une naissance comme synchronisée
   Future<void> markAsSynced(String localId, String serverId) async {
+    if (_database == null) return;
     final db = _database!;
     final now = DateTime.now().toIso8601String();
 

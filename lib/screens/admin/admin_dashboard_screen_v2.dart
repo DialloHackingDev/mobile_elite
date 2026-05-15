@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:fl_chart/fl_chart.dart';
 import '../../models/agent.dart';
 import '../../services/api_service.dart';
 import '../../services/auth_service.dart';
@@ -8,6 +9,8 @@ import '../role_selection_screen.dart';
 import 'admin_agents_screen.dart';
 import 'admin_network_screen.dart';
 import 'admin_audit_screen.dart';
+import '../agent/agent_register_wizard_screen.dart';
+import 'package:intl/intl.dart';
 
 /// Tableau de bord Admin - Supervision nationale (v2 - avec vraies données)
 class AdminDashboardScreenV2 extends StatefulWidget {
@@ -23,12 +26,34 @@ class _AdminDashboardScreenV2State extends State<AdminDashboardScreenV2> {
   int _currentIndex = 0;
   bool _isLoading = true;
   Map<String, dynamic>? _dashboardData;
+  List<Map<String, dynamic>>? _trends;
   String? _errorMessage;
 
   @override
   void initState() {
     super.initState();
     _loadDashboardData();
+    _loadPendingRequests();
+  }
+
+  List<Map<String, dynamic>> _pendingRequests = [];
+  bool _isLoadingRequests = false;
+
+  Future<void> _loadPendingRequests() async {
+    setState(() => _isLoadingRequests = true);
+    try {
+      final api = ApiService();
+      final res = await api.get('/requests/pending/all');
+      if (mounted && res['success'] == true) {
+        setState(() {
+          _pendingRequests = (res['data'] as List?)?.cast<Map<String, dynamic>>() ?? [];
+        });
+      }
+    } catch (e) {
+      print('Erreur chargement demandes: $e');
+    } finally {
+      if (mounted) setState(() => _isLoadingRequests = false);
+    }
   }
 
   Future<void> _loadDashboardData() async {
@@ -45,15 +70,17 @@ class _AdminDashboardScreenV2State extends State<AdminDashboardScreenV2> {
       final agentsRes = await api.get('/dashboard/agents');
       final networkRes = await api.get('/dashboard/network');
       final auditRes = await api.get('/dashboard/audit');
+      final trendsRes = await api.getDashboardTrends();
 
       if (mounted) {
         setState(() {
           _dashboardData = {
-            'kpis': kpisRes ?? {},
-            'agents': agentsRes ?? {},
-            'network': networkRes ?? {},
-            'audit': auditRes ?? {},
+            'kpis': kpisRes['data'] ?? kpisRes ?? {},
+            'agents': agentsRes['data'] ?? agentsRes ?? {},
+            'network': networkRes['data'] ?? networkRes ?? {},
+            'audit': auditRes['data'] ?? auditRes ?? {},
           };
+          _trends = (trendsRes['data'] as List?)?.cast<Map<String, dynamic>>();
           _isLoading = false;
         });
       }
@@ -89,9 +116,15 @@ class _AdminDashboardScreenV2State extends State<AdminDashboardScreenV2> {
         agents: _dashboardData?['agents'],
         network: _dashboardData?['network'],
         audit: _dashboardData?['audit'],
+        trends: _trends,
         isLoading: _isLoading,
         admin: widget.admin,
         onRefresh: _loadDashboardData,
+      ),
+      _RequestsTab(
+        requests: _pendingRequests,
+        isLoading: _isLoadingRequests,
+        onRefresh: _loadPendingRequests,
       ),
       AdminAgentsScreen(agentsData: _dashboardData?['agents']),
       AdminNetworkScreen(networkData: _dashboardData?['network']),
@@ -178,25 +211,32 @@ class _AdminDashboardScreenV2State extends State<AdminDashboardScreenV2> {
                   onTap: () => setState(() => _currentIndex = 0),
                 ),
                 _NavItem(
+                  icon: Icons.assignment_outlined,
+                  activeIcon: Icons.assignment,
+                  label: 'Demandes',
+                  isActive: _currentIndex == 1,
+                  onTap: () => setState(() => _currentIndex = 1),
+                ),
+                _NavItem(
                   icon: Icons.people_outline,
                   activeIcon: Icons.people,
                   label: 'Agents',
-                  isActive: _currentIndex == 1,
-                  onTap: () => setState(() => _currentIndex = 1),
+                  isActive: _currentIndex == 2,
+                  onTap: () => setState(() => _currentIndex = 2),
                 ),
                 _NavItem(
                   icon: Icons.network_check_outlined,
                   activeIcon: Icons.network_check,
                   label: 'Réseau',
-                  isActive: _currentIndex == 2,
-                  onTap: () => setState(() => _currentIndex = 2),
+                  isActive: _currentIndex == 3,
+                  onTap: () => setState(() => _currentIndex = 3),
                 ),
                 _NavItem(
                   icon: Icons.security_outlined,
                   activeIcon: Icons.security,
                   label: 'Audit',
-                  isActive: _currentIndex == 3,
-                  onTap: () => setState(() => _currentIndex = 3),
+                  isActive: _currentIndex == 4,
+                  onTap: () => setState(() => _currentIndex = 4),
                 ),
               ],
             ),
@@ -209,10 +249,11 @@ class _AdminDashboardScreenV2State extends State<AdminDashboardScreenV2> {
 
 /// Onglet Vue d'ensemble nationale
 class _NationalOverviewTab extends StatelessWidget {
-  final Map<String, dynamic> kpis;
+  final Map<String, dynamic>? kpis;
   final Map<String, dynamic>? agents;
   final Map<String, dynamic>? network;
   final Map<String, dynamic>? audit;
+  final List<Map<String, dynamic>>? trends;
   final bool isLoading;
   final Agent admin;
   final VoidCallback onRefresh;
@@ -222,6 +263,7 @@ class _NationalOverviewTab extends StatelessWidget {
     this.agents,
     this.network,
     this.audit,
+    this.trends,
     required this.isLoading,
     required this.admin,
     required this.onRefresh,
@@ -285,34 +327,34 @@ class _NationalOverviewTab extends StatelessWidget {
               children: [
                 _KpiCard(
                   icon: Icons.child_care,
-                  value: _formatNumber(kpis['totalBirths'] ?? 0),
+                  value: _formatNumber(kpis?['totalBirths'] ?? 0),
                   label: 'Total Naissances',
-                  trend: '+${_formatNumber(kpis['birthsToday'] ?? 0)}/jour',
+                  trend: '+${_formatNumber(kpis?['birthsToday'] ?? 0)}/jour',
                   trendUp: true,
                   color: const Color(0xFF059669),
                 ),
                 _KpiCard(
                   icon: Icons.public,
-                  value: '${kpis['coverageRate'] ?? 0}%',
+                  value: '${kpis?['coverageRate'] ?? 0}%',
                   label: 'Couverture Nationale',
                   trend: 'Objectif: 100%',
-                  trendUp: (kpis['coverageRate'] ?? 0) >= 80,
+                  trendUp: (kpis?['coverageRate'] ?? 0) >= 80,
                   color: const Color(0xFF10B981),
                 ),
                 _KpiCard(
                   icon: Icons.badge,
-                  value: '${kpis['activeAgents'] ?? 0}',
+                  value: '${kpis?['activeAgents'] ?? 0}',
                   label: 'Agents Actifs',
-                  trend: '${kpis['totalAgents'] ?? 0} total',
+                  trend: '${kpis?['totalAgents'] ?? 0} total',
                   trendUp: null,
                   color: const Color(0xFF7C3AED),
                 ),
                 _KpiCard(
                   icon: Icons.sync,
-                  value: '${kpis['syncRate'] ?? 0}%',
+                  value: '${kpis?['syncRate'] ?? 0}%',
                   label: 'Taux Sync',
-                  trend: '${kpis['blockchainNodes'] ?? 0} nœuds',
-                  trendUp: (kpis['syncRate'] ?? 0) >= 95,
+                  trend: '${kpis?['blockchainNodes'] ?? 0} nœuds',
+                  trendUp: (kpis?['syncRate'] ?? 0) >= 95,
                   color: const Color(0xFFDC2626),
                 ),
               ],
@@ -322,6 +364,16 @@ class _NationalOverviewTab extends StatelessWidget {
 
             // Statistiques détaillées
             _DetailedStatsCard(kpis: kpis),
+
+            const SizedBox(height: 24),
+
+            // Tendances d'enregistrement (Graphique Lineaire)
+            _RegistrationTrendsCard(trends: trends),
+
+            const SizedBox(height: 24),
+
+            // Distribution par genre (Graphique Circulaire)
+            _GenderDistributionCard(kpis: kpis),
 
             const SizedBox(height: 24),
 
@@ -532,7 +584,7 @@ class _KpiCard extends StatelessWidget {
 }
 
 class _DetailedStatsCard extends StatelessWidget {
-  final Map<String, dynamic> kpis;
+  final Map<String, dynamic>? kpis;
 
   const _DetailedStatsCard({required this.kpis});
 
@@ -562,25 +614,25 @@ class _DetailedStatsCard extends StatelessWidget {
           const SizedBox(height: 14),
           _StatRow(
             label: 'Naissances ce mois',
-            value: '${kpis['birthsThisMonth'] ?? 0}',
+            value: '${kpis?['birthsThisMonth'] ?? 0}',
             icon: Icons.calendar_today_outlined,
           ),
           const SizedBox(height: 10),
           _StatRow(
             label: 'Distribution (M/F)',
-            value: '${kpis['genderDistribution']?['male'] ?? 0} / ${kpis['genderDistribution']?['female'] ?? 0}',
+            value: '${kpis?['genderDistribution']?['male'] ?? 0} / ${kpis?['genderDistribution']?['female'] ?? 0}',
             icon: Icons.people_outline,
           ),
           const SizedBox(height: 10),
           _StatRow(
             label: 'Établissements actifs',
-            value: '${kpis['activeEstablishments'] ?? 0} / ${kpis['totalEstablishments'] ?? 0}',
+            value: '${kpis?['activeEstablishments'] ?? 0} / ${kpis?['totalEstablishments'] ?? 0}',
             icon: Icons.domain_outlined,
           ),
           const SizedBox(height: 10),
           _StatRow(
             label: 'Synchronisation',
-            value: '${kpis['pendingSync'] ?? 0} en attente',
+            value: '${kpis?['pendingSync'] ?? 0} en attente',
             icon: Icons.hourglass_bottom_outlined,
           ),
         ],
@@ -632,7 +684,7 @@ class _StatRow extends StatelessWidget {
 }
 
 class _GeographicActivityCard extends StatelessWidget {
-  final Map<String, dynamic> kpis;
+  final Map<String, dynamic>? kpis;
 
   const _GeographicActivityCard({required this.kpis});
 
@@ -723,7 +775,7 @@ class _GeographicActivityCard extends StatelessWidget {
 }
 
 class _MonthlyGoalsCard extends StatelessWidget {
-  final Map<String, dynamic> kpis;
+  final Map<String, dynamic>? kpis;
 
   const _MonthlyGoalsCard({required this.kpis});
 
@@ -1010,6 +1062,445 @@ class _NavItem extends StatelessWidget {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _RegistrationTrendsCard extends StatelessWidget {
+  final List<Map<String, dynamic>>? trends;
+
+  const _RegistrationTrendsCard({this.trends});
+
+  @override
+  Widget build(BuildContext context) {
+    if (trends == null || trends!.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: Colors.grey.withOpacity(0.1),
+          width: 1,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Tendances d\'Enregistrement',
+            style: GoogleFonts.poppins(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: const Color(0xFF0F172A),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            '7 derniers jours',
+            style: GoogleFonts.poppins(
+              fontSize: 11,
+              color: const Color(0xFF94A3B8),
+            ),
+          ),
+          const SizedBox(height: 24),
+          SizedBox(
+            height: 180,
+            child: LineChart(
+              LineChartData(
+                gridData: FlGridData(show: false),
+                titlesData: FlTitlesData(
+                  bottomTitles: AxisTitles(
+                    sideTitles: SideTitles(
+                      showTitles: true,
+                      getTitlesWidget: (value, meta) {
+                        final index = value.toInt();
+                        if (index >= 0 && index < trends!.length) {
+                          return Padding(
+                            padding: const EdgeInsets.only(top: 8.0),
+                            child: Text(
+                              trends![index]['label'] ?? '',
+                              style: GoogleFonts.poppins(
+                                fontSize: 9,
+                                color: const Color(0xFF94A3B8),
+                              ),
+                            ),
+                          );
+                        }
+                        return const SizedBox.shrink();
+                      },
+                      reservedSize: 22,
+                    ),
+                  ),
+                  leftTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                  topTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                  rightTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                ),
+                borderData: FlBorderData(show: false),
+                lineBarsData: [
+                  LineChartBarData(
+                    spots: List.generate(trends!.length, (i) {
+                      return FlSpot(i.toDouble(), (trends![i]['count'] as num).toDouble());
+                    }),
+                    isCurved: true,
+                    color: const Color(0xFF10B981),
+                    barWidth: 3,
+                    isStrokeCapRound: true,
+                    dotData: FlDotData(show: false),
+                    belowBarData: BarAreaData(
+                      show: true,
+                      color: const Color(0xFF10B981).withOpacity(0.1),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _GenderDistributionCard extends StatelessWidget {
+  final Map<String, dynamic>? kpis;
+
+  const _GenderDistributionCard({required this.kpis});
+
+  @override
+  Widget build(BuildContext context) {
+    final dist = kpis?['genderDistribution'] ?? {};
+    final maleCount = (dist['male'] ?? 0) as num;
+    final femaleCount = (dist['female'] ?? 0) as num;
+    final total = maleCount + femaleCount;
+
+    if (total == 0) return const SizedBox.shrink();
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: Colors.grey.withOpacity(0.1),
+          width: 1,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Distribution par Genre',
+            style: GoogleFonts.poppins(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: const Color(0xFF0F172A),
+            ),
+          ),
+          const SizedBox(height: 20),
+          Row(
+            children: [
+              SizedBox(
+                height: 120,
+                width: 120,
+                child: PieChart(
+                  PieChartData(
+                    sectionsSpace: 0,
+                    centerSpaceRadius: 30,
+                    sections: [
+                      PieChartSectionData(
+                        color: const Color(0xFF3B82F6),
+                        value: maleCount.toDouble(),
+                        title: '${(maleCount / total * 100).toInt()}%',
+                        radius: 40,
+                        titleStyle: GoogleFonts.poppins(
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                      ),
+                      PieChartSectionData(
+                        color: const Color(0xFFEC4899),
+                        value: femaleCount.toDouble(),
+                        title: '${(femaleCount / total * 100).toInt()}%',
+                        radius: 40,
+                        titleStyle: GoogleFonts.poppins(
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(width: 32),
+              Expanded(
+                child: Column(
+                  children: [
+                    _LegendItem(
+                      color: const Color(0xFF3B82F6),
+                      label: 'Garçons',
+                      value: maleCount.toString(),
+                    ),
+                    const SizedBox(height: 8),
+                    _LegendItem(
+                      color: const Color(0xFFEC4899),
+                      label: 'Filles',
+                      value: femaleCount.toString(),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _LegendItem extends StatelessWidget {
+  final Color color;
+  final String label;
+  final String value;
+
+  const _LegendItem({
+    required this.color,
+    required this.label,
+    required this.value,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Container(
+          width: 10,
+          height: 10,
+          decoration: BoxDecoration(
+            color: color,
+            shape: BoxShape.circle,
+          ),
+        ),
+        const SizedBox(width: 8),
+        Text(
+          label,
+          style: GoogleFonts.poppins(
+            fontSize: 12,
+            color: const Color(0xFF64748B),
+          ),
+        ),
+        const Spacer(),
+        Text(
+          value,
+          style: GoogleFonts.poppins(
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            color: const Color(0xFF0F172A),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _RequestsTab extends StatelessWidget {
+  final List<Map<String, dynamic>> requests;
+  final bool isLoading;
+  final VoidCallback onRefresh;
+
+  const _RequestsTab({
+    required this.requests,
+    required this.isLoading,
+    required this.onRefresh,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    if (isLoading && requests.isEmpty) {
+      return const Center(child: CircularProgressIndicator(color: Color(0xFF10B981)));
+    }
+
+    return RefreshIndicator(
+      onRefresh: () async => onRefresh(),
+      color: const Color(0xFF10B981),
+      child: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF10B981).withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Icon(Icons.pending_actions, color: Color(0xFF10B981), size: 20),
+                ),
+                const SizedBox(width: 12),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Demandes en attente',
+                      style: GoogleFonts.poppins(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: const Color(0xFF0F172A),
+                      ),
+                    ),
+                    Text(
+                      '${requests.length} dossiers à traiter au niveau national',
+                      style: GoogleFonts.poppins(
+                        fontSize: 12,
+                        color: const Color(0xFF64748B),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          Expanded(
+            child: requests.isEmpty
+                ? Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.assignment_turned_in_outlined,
+                            size: 64, color: Colors.grey.withOpacity(0.3)),
+                        const SizedBox(height: 16),
+                        Text(
+                          'Toutes les demandes ont été traitées',
+                          style: GoogleFonts.poppins(
+                            color: const Color(0xFF64748B),
+                            fontSize: 14,
+                          ),
+                        ),
+                      ],
+                    ),
+                  )
+                : ListView.builder(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    itemCount: requests.length,
+                    itemBuilder: (context, index) {
+                      final req = requests[index];
+                      return _RequestCard(
+                        request: req,
+                        onTap: () async {
+                          final result = await Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => AgentRegisterWizardScreen(initialRequest: req),
+                            ),
+                          );
+                          if (result == true) onRefresh();
+                        },
+                      ).animate().fadeIn(delay: (index * 50).ms).slideX(begin: 0.1, end: 0);
+                    },
+                  ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _RequestCard extends StatelessWidget {
+  final Map<String, dynamic> request;
+  final VoidCallback onTap;
+
+  const _RequestCard({required this.request, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final date = request['createdAt'] != null 
+        ? DateFormat('dd/MM/yyyy HH:mm').format(DateTime.parse(request['createdAt']))
+        : 'Date inconnue';
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.02),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(16),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              children: [
+                Container(
+                  width: 48,
+                  height: 48,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF1F5F9),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Icon(Icons.person_outline, color: Color(0xFF64748B)),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        request['childFirstName'] != null
+                            ? '${request['childFirstName']} ${request['childLastName']}'
+                            : 'Demande sans nom',
+                        style: GoogleFonts.poppins(
+                          fontWeight: FontWeight.w600,
+                          fontSize: 14,
+                          color: const Color(0xFF0F172A),
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'Déclarant: ${request['citizen']?['fullName'] ?? 'Inconnu'}',
+                        style: GoogleFonts.poppins(
+                          fontSize: 12,
+                          color: const Color(0xFF64748B),
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Row(
+                        children: [
+                          const Icon(Icons.access_time, size: 12, color: Color(0xFF94A3B8)),
+                          const SizedBox(width: 4),
+                          Text(
+                            date,
+                            style: GoogleFonts.poppins(
+                              fontSize: 11,
+                              color: const Color(0xFF94A3B8),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                const Icon(Icons.chevron_right, color: Color(0xFFCBD5E1)),
+              ],
+            ),
+          ),
         ),
       ),
     );

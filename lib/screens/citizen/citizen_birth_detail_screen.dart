@@ -7,6 +7,8 @@ import 'dart:io';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
 import '../../services/api_service.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
+import '../../utils/platform_helper.dart';
 
 class CitizenBirthDetailScreen extends StatefulWidget {
   final Map<String, dynamic> birthData;
@@ -32,17 +34,28 @@ class _CitizenBirthDetailScreenState extends State<CitizenBirthDetailScreen> {
       return;
     }
 
+    final api = ApiService();
+    final birthId = widget.birthData['nationalId'] ?? widget.birthData['id']?.toString() ?? '';
+    
+    if (birthId.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('ID de l\'acte introuvable'), backgroundColor: Colors.red),
+      );
+      return;
+    }
+
+    final safeName = (widget.birthData['childFirstName'] ?? 'acte').toString().replaceAll(' ', '_');
+    final fileName = '${safeName}_${birthId.replaceAll('/', '_')}.pdf';
+
+    if (kIsWeb) {
+      // Sur le Web, on ouvre l'URL directe avec le token en query param
+      final url = '${api.baseUrl}/citizen/certificate/$birthId?token=${api.token}';
+      downloadWeb(url, fileName);
+      return;
+    }
+
     setState(() => _isDownloading = true);
     try {
-      final api = ApiService();
-      final birthId = widget.birthData['nationalId'] ?? widget.birthData['id']?.toString() ?? '';
-      if (birthId.isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('ID de l\'acte introuvable'), backgroundColor: Colors.red),
-        );
-        return;
-      }
-
       final bytes = await api.downloadCertificateBytes(birthId);
       if (bytes == null || bytes.isEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -52,8 +65,6 @@ class _CitizenBirthDetailScreenState extends State<CitizenBirthDetailScreen> {
       }
 
       final tempDir = await getTemporaryDirectory();
-      final safeName = (widget.birthData['childFirstName'] ?? 'acte').toString().replaceAll(' ', '_');
-      final fileName = '${safeName}_${birthId.replaceAll('/', '_')}.pdf';
       final filePath = p.join(tempDir.path, fileName);
       final file = File(filePath);
       await file.writeAsBytes(bytes, flush: true);
@@ -62,7 +73,7 @@ class _CitizenBirthDetailScreenState extends State<CitizenBirthDetailScreen> {
       await Share.shareXFiles([XFile(filePath)], text: 'Acte de naissance - ${widget.birthData['childFirstName']}');
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Certificat téléchargé avec succès'), backgroundColor: Color(0xFF059669)),
+        const SnackBar(content: Text('Certificat prêt'), backgroundColor: Color(0xFF059669)),
       );
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -539,7 +550,8 @@ class _CitizenBirthDetailScreenState extends State<CitizenBirthDetailScreen> {
   String _formatDate(String? date) {
     if (date == null) return 'Non spécifiée';
     try {
-      final dt = DateTime.parse(date);
+      // Nettoyer la date si c'est une chaîne ISO complète
+      final DateTime dt = DateTime.parse(date).toLocal();
       return DateFormat('dd MMM yyyy', 'fr_FR').format(dt);
     } catch (e) {
       return date;

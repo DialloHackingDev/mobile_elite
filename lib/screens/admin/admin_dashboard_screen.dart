@@ -80,6 +80,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           _pendingRequests =
               (res['data'] as List?)?.cast<Map<String, dynamic>>() ?? [];
         });
+        print('Demandes chargées: ${_pendingRequests.length}');
+      } else {
+        print('Erreur ou aucune donnée reçue pour les demandes: ${res?['message']}');
       }
     } catch (e) {
       print('Erreur chargement demandes: $e');
@@ -213,7 +216,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                   activeIcon: Icons.assignment,
                   label: 'Demandes',
                   isActive: _currentIndex == 1,
-                  onTap: () => setState(() => _currentIndex = 1),
+                  onTap: () {
+                    setState(() => _currentIndex = 1);
+                    _loadRequests();
+                  },
                 ),
                 _NavItem(
                   icon: Icons.people_outline,
@@ -309,67 +315,115 @@ class _AdminHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(20),
+      width: double.infinity,
+      padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
         gradient: const LinearGradient(
-          colors: [Color(0xFF10B981), Color(0xFF059669)],
+          colors: [Color(0xFF0F172A), Color(0xFF1E293B)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(24),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF10B981).withOpacity(0.2),
+            color: const Color(0xFF0F172A).withOpacity(0.3),
             blurRadius: 20,
-            offset: const Offset(0, 8),
+            offset: const Offset(0, 10),
           ),
         ],
       ),
-      child: Row(
+      child: Column(
         children: [
+          // Logo National en haut (Cercle professionnel)
           Container(
-            width: 56,
-            height: 56,
+            padding: const EdgeInsets.all(4),
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.2),
               shape: BoxShape.circle,
-            ),
-            child: const Icon(
-              Icons.admin_panel_settings,
+              border: Border.all(color: const Color(0xFFEAB308), width: 2),
               color: Colors.white,
-              size: 28,
+            ),
+            child: CircleAvatar(
+              radius: 40,
+              backgroundColor: Colors.white,
+              backgroundImage: const AssetImage('assets/images/logoGuine.png'),
             ),
           ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Administrateur',
-                  style: GoogleFonts.poppins(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
-                    color: Colors.white.withOpacity(0.8),
-                  ),
-                ),
-                Text(
-                  admin.fullName,
-                  style: GoogleFonts.poppins(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w700,
-                    color: Colors.white,
-                  ),
-                ),
-                Text(
-                  'Ministère de l\'État Civil',
-                  style: GoogleFonts.poppins(
-                    fontSize: 12,
-                    color: Colors.white.withOpacity(0.7),
-                  ),
-                ),
-              ],
+          const SizedBox(height: 12),
+          Text(
+            'RÉPUBLIQUE DE GUINÉE',
+            style: GoogleFonts.poppins(
+              fontSize: 14,
+              fontWeight: FontWeight.w800,
+              color: Colors.white,
+              letterSpacing: 2,
             ),
+          ),
+          Text(
+            'Travail - Justice - Solidarité',
+            style: GoogleFonts.poppins(
+              fontSize: 10,
+              fontWeight: FontWeight.w500,
+              color: const Color(0xFFEAB308),
+              fontStyle: FontStyle.italic,
+            ),
+          ),
+          const SizedBox(height: 24),
+          Container(
+            height: 1,
+            width: 100,
+            color: Colors.white24,
+          ),
+          const SizedBox(height: 20),
+          Row(
+            children: [
+              Container(
+                width: 50,
+                height: 50,
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(Icons.admin_panel_settings_rounded, color: Color(0xFF10B981), size: 28),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      admin.fullName,
+                      style: GoogleFonts.poppins(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    ),
+                    Text(
+                      'Superviseur National',
+                      style: GoogleFonts.poppins(
+                        fontSize: 12,
+                        color: Colors.white.withOpacity(0.6),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF10B981).withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  'ADMIN',
+                  style: GoogleFonts.poppins(
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                    color: const Color(0xFF10B981),
+                  ),
+                ),
+              ),
+            ],
           ),
         ],
       ),

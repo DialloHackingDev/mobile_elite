@@ -10,8 +10,13 @@ import 'screens/role_selection_screen.dart';
 import 'utils/logger.dart';
 import 'widgets/error_boundary.dart';
 
+import 'package:intl/date_symbol_data_local.dart';
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  
+  // Initialiser les locales
+  await initializeDateFormatting('fr_FR', null);
 
   // Configuration du Logger Global
   FlutterError.onError = (FlutterErrorDetails details) {

@@ -15,12 +15,12 @@ class AgentLoginScreen extends StatefulWidget {
 }
 
 class _AgentLoginScreenState extends State<AgentLoginScreen> {
-  final _idCtrl       = TextEditingController();
-  final _passCtrl     = TextEditingController();
-  bool  _loading      = false;
-  bool  _obscure      = true;
+  final _idCtrl = TextEditingController();
+  final _passCtrl = TextEditingController();
+  bool _loading = false;
+  bool _obscure = true;
   String? _error;
-  bool  _isOnline     = true;
+  bool _isOnline = true;
 
   @override
   void initState() {
@@ -41,7 +41,7 @@ class _AgentLoginScreenState extends State<AgentLoginScreen> {
   }
 
   Future<void> _login() async {
-    final id   = _idCtrl.text.trim();
+    final id = _idCtrl.text.trim();
     final pass = _passCtrl.text;
 
     if (id.isEmpty || pass.isEmpty) {
@@ -49,7 +49,10 @@ class _AgentLoginScreenState extends State<AgentLoginScreen> {
       return;
     }
 
-    setState(() { _loading = true; _error = null; });
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
 
     final result = await AuthService.login(id, pass);
 
@@ -58,7 +61,7 @@ class _AgentLoginScreenState extends State<AgentLoginScreen> {
 
     if (result['success'] == true) {
       final agent = result['agent'] as Agent;
-      
+
       // Redirection selon le rôle
       if (agent.isAdmin) {
         Navigator.pushReplacement(
@@ -74,7 +77,7 @@ class _AgentLoginScreenState extends State<AgentLoginScreen> {
     } else {
       final err = result['error'] as String?;
       final msg = result['message'] as String?;
-      
+
       setState(() {
         if (err == 'SESSION_EXPIRED') {
           _error = 'Session expirée, veuillez vous reconnecter';
@@ -252,8 +255,7 @@ class _AgentLoginScreenState extends State<AgentLoginScreen> {
                           color: const Color(0xFF94A3B8),
                           size: 20,
                         ),
-                        onPressed: () =>
-                            setState(() => _obscure = !_obscure),
+                        onPressed: () => setState(() => _obscure = !_obscure),
                       ),
                     ),
 
@@ -274,8 +276,7 @@ class _AgentLoginScreenState extends State<AgentLoginScreen> {
                           Expanded(
                             child: Text(_error!,
                                 style: GoogleFonts.poppins(
-                                    fontSize: 13,
-                                    color: Colors.red.shade700)),
+                                    fontSize: 13, color: Colors.red.shade700)),
                           ),
                         ]),
                       ),
@@ -336,9 +337,7 @@ class _AgentLoginScreenState extends State<AgentLoginScreen> {
                     width: 8,
                     height: 8,
                     decoration: BoxDecoration(
-                      color: _isOnline
-                          ? green
-                          : const Color(0xFFF59E0B),
+                      color: _isOnline ? green : const Color(0xFFF59E0B),
                       shape: BoxShape.circle,
                     ),
                   ),
@@ -348,9 +347,7 @@ class _AgentLoginScreenState extends State<AgentLoginScreen> {
                     style: GoogleFonts.poppins(
                       fontSize: 11,
                       fontWeight: FontWeight.w600,
-                      color: _isOnline
-                          ? green
-                          : const Color(0xFFF59E0B),
+                      color: _isOnline ? green : const Color(0xFFF59E0B),
                       letterSpacing: 0.5,
                     ),
                   ),
@@ -395,8 +392,8 @@ class _AgentLoginScreenState extends State<AgentLoginScreen> {
         style: GoogleFonts.poppins(fontSize: 14),
         decoration: InputDecoration(
           hintText: hint,
-          hintStyle: GoogleFonts.poppins(
-              color: const Color(0xFFCBD5E1), fontSize: 14),
+          hintStyle:
+              GoogleFonts.poppins(color: const Color(0xFFCBD5E1), fontSize: 14),
           prefixIcon: Padding(
             padding: const EdgeInsets.all(12),
             child: Container(
@@ -421,8 +418,7 @@ class _AgentLoginScreenState extends State<AgentLoginScreen> {
               borderSide: const BorderSide(color: Color(0xFFE2E8F0))),
           focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide:
-                  const BorderSide(color: Color(0xFF059669), width: 2)),
+              borderSide: const BorderSide(color: Color(0xFF059669), width: 2)),
         ),
       );
 }

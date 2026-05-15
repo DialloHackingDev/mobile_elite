@@ -107,8 +107,8 @@ class _AdminAgentsScreenState extends State<AdminAgentsScreen> {
         agent: agent,
         onSave: (data) async {
           final api = ApiService();
-          final res = await api.patch(
-              '/agents/${agent['id']}', data); // Use patch or put
+          final res = await api.put(
+              '/agents/${agent['id']}', data);
           if (res['success'] == true && mounted) {
             setState(() {}); // Refresh list
             ScaffoldMessenger.of(context).showSnackBar(

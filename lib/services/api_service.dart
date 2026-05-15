@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 
 /// URL configurable via --dart-define=API_BASE_URL=http://X.X.X.X:3000/api
 /// Émulateur Android  → http://10.0.2.2:3000/api  (valeur par défaut)
@@ -31,7 +32,10 @@ class ApiService {
   String? _refreshToken;
   Map<String, dynamic>? _user;
 
-  String get baseUrl => _kBaseUrl;
+  String get baseUrl {
+    if (kIsWeb) return 'http://localhost:3000/api';
+    return _kBaseUrl;
+  }
   bool get isAuthenticated => _token != null;
   String? get token => _token;
   Map<String, dynamic>? get userData => _user;
@@ -223,6 +227,21 @@ class ApiService {
     }
   }
 
+  Future<Map<String, dynamic>> put(
+    String path,
+    Map<String, dynamic> body,
+  ) async {
+    try {
+      final res = await http
+          .put(Uri.parse('$baseUrl$path'),
+              headers: _headers(), body: jsonEncode(body))
+          .timeout(const Duration(seconds: 30));
+      return _parse(res);
+    } catch (e) {
+      return {'success': false, 'error': 'Erreur réseau: $e'};
+    }
+  }
+
   Future<Map<String, dynamic>> delete(String path) async {
     try {
       final res = await http
@@ -362,6 +381,7 @@ class ApiService {
   // ══════════════════════════════════════════════════════════════════════════
 
   Future<Map<String, dynamic>> getDashboardStats() => get('/dashboard/stats');
+  Future<Map<String, dynamic>> getDashboardTrends() => get('/dashboard/trends');
 
   // ══════════════════════════════════════════════════════════════════════════
   // VÉRIFICATION (public)

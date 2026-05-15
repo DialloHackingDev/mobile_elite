@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'agent/agent_dashboard_screen.dart';
+import 'admin/admin_dashboard_screen_v2.dart';
+import '../services/auth_service.dart';
+import '../models/agent.dart';
 import 'qr_display_screen.dart';
 
 class SuccessScreen extends StatelessWidget {
@@ -197,12 +200,24 @@ class SuccessScreen extends StatelessWidget {
                   width: double.infinity,
                   height: 52,
                   child: OutlinedButton.icon(
-                    onPressed: () => Navigator.pushAndRemoveUntil(
-                      context,
-                      MaterialPageRoute(
-                          builder: (_) => const AgentDashboardScreen()),
-                      (r) => false,
-                    ),
+                    onPressed: () {
+                      final currentAgent = AuthService.currentAgent;
+                      if (currentAgent?.isAdmin == true) {
+                        Navigator.pushAndRemoveUntil(
+                          context,
+                          MaterialPageRoute(
+                              builder: (_) => AdminDashboardScreenV2(admin: currentAgent!)),
+                          (r) => false,
+                        );
+                      } else {
+                        Navigator.pushAndRemoveUntil(
+                          context,
+                          MaterialPageRoute(
+                              builder: (_) => const AgentDashboardScreen()),
+                          (r) => false,
+                        );
+                      }
+                    },
                     icon: const Icon(Icons.home_rounded, size: 20),
                     label: Text('Retour au tableau de bord',
                         style: GoogleFonts.poppins(

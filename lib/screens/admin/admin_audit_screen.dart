@@ -94,7 +94,8 @@ class _AdminAuditScreenState extends State<AdminAuditScreen> {
                     return const Center(child: CircularProgressIndicator());
                   }
 
-                  final data = snapshot.data ?? {};
+                  final response = snapshot.data ?? {};
+                  final data = response['data'] ?? {};
                   final births = (data['births'] as List?)?.cast<Map<String, dynamic>>() ?? [];
                   final agents = (data['agents'] as List?)?.cast<Map<String, dynamic>>() ?? [];
                   final alerts = (data['alerts'] as List?)?.cast<Map<String, dynamic>>() ?? [];
